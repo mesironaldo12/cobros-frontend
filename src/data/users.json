@@ -1,16 +1,6 @@
 [
-  {
-    "id": "user-1",
-    "name": "Administrador",
-    "carnet": "1234567",
-    "password": "admin123",
-    "role": "ADMIN"
-  },
-  {
-    "id": "user-2",
-    "name": "Usuario de prueba",
-    "carnet": "7654321",
-    "password": "usuario123",
-    "role": "USUARIO"
-  }
+  { "id": "admin-1", "name": "María González", "carnet": "1000001", "password": "admin123", "role": "ADMIN" },
+  { "id": "treasurer-1", "name": "Carlos Mendoza", "carnet": "2000001", "password": "tesorero123", "role": "TESORERO" },
+  { "id": "student-1", "name": "Ana Rodríguez", "carnet": "20241001", "password": "estudiante123", "role": "ESTUDIANTE" },
+  { "id": "student-2", "name": "Luis Fernández", "carnet": "20241002", "password": "estudiante123", "role": "ESTUDIANTE" }
 ]

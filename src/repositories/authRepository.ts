@@ -1,14 +1,12 @@
-import initialUsers from "../data/users.json";
 import { storageService } from "../services/storageService";
-import type { LoginCredentials, User, UserRecord } from "../types/auth";
+import type { LoginCredentials, User } from "../types/auth";
+import { financeRepository } from "./financeRepository";
 
 const SESSION_KEY = "app_session";
 
-const users = initialUsers as UserRecord[];
-
 export const authRepository = {
   login(credentials: LoginCredentials): User | null {
-    const foundUser = users.find(
+    const foundUser = financeRepository.getUsers().find(
       (user) =>
         user.carnet === credentials.carnet &&
         user.password === credentials.password,

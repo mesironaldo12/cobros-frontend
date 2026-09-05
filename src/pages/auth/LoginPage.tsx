@@ -28,7 +28,7 @@ function LoginPage() {
   };
 
   return (
-    <main>
+    <main className="login-page">
       <LoginForm error={error} onSubmit={handleLogin} />
     </main>
   );
