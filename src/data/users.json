@@ -1,23 +1,6 @@
 [
-  {
-    "id": "student-1",
-    "name": "Valentina Rojas",
-    "carnet": "20240001",
-    "password": "estudiante123",
-    "role": "ESTUDIANTE"
-  },
-  {
-    "id": "treasurer-1",
-    "name": "Miguel Herrera",
-    "carnet": "20240002",
-    "password": "tesorero123",
-    "role": "TESORERO"
-  },
-  {
-    "id": "admin-1",
-    "name": "Sofía Martínez",
-    "carnet": "20240003",
-    "password": "admin123",
-    "role": "ADMIN"
-  }
+  { "id": "admin-1", "name": "María González", "carnet": "1000001", "password": "admin123", "role": "ADMIN" },
+  { "id": "treasurer-1", "name": "Carlos Mendoza", "carnet": "2000001", "password": "tesorero123", "role": "TESORERO" },
+  { "id": "student-1", "name": "Ana Rodríguez", "carnet": "20241001", "password": "estudiante123", "role": "ESTUDIANTE" },
+  { "id": "student-2", "name": "Luis Fernández", "carnet": "20241002", "password": "estudiante123", "role": "ESTUDIANTE" }
 ]

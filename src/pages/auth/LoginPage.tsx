@@ -26,7 +26,11 @@ function LoginPage() {
     navigate("/", { replace: true });
   };
 
-  return <main className="login-page"><LoginForm error={error} users={demoUsers} onSubmit={handleLogin} /></main>;
+  return (
+    <main className="login-page">
+      <LoginForm error={error} onSubmit={handleLogin} />
+    </main>
+  );
 }
 
 export default LoginPage;
