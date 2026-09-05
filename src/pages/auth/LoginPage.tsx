@@ -1,19 +1,35 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
-import LoginForm from "../../components/auth/LoginForm";
+import LoginForm, { type DemoUser } from "../../components/auth/LoginForm";
 import { authRepository } from "../../repositories/authRepository";
-import type { LoginCredentials } from "../../types/auth";
+import { financeRepository } from "../../repositories/financeRepository";
+import type { LoginCredentials, UserRole } from "../../types/auth";
 
-const demoUsers = [
-  { name: "Valentina Rojas", role: "ESTUDIANTE" as const, carnet: "20240001", password: "estudiante123", description: "Consulta tus cuotas y pagos." },
-  { name: "Miguel Herrera", role: "TESORERO" as const, carnet: "20240002", password: "tesorero123", description: "Gestiona pagos y movimientos." },
-  { name: "Sofía Martínez", role: "ADMIN" as const, carnet: "20240003", password: "admin123", description: "Administra la plataforma." },
-];
+const profileDescriptions: Record<UserRole, string> = {
+  ESTUDIANTE: "Consulta tus cuotas y pagos.",
+  TESORERO: "Gestiona pagos y movimientos.",
+  ADMIN: "Administra la plataforma.",
+};
+
+const profileRoles: UserRole[] = ["ESTUDIANTE", "TESORERO", "ADMIN"];
+
+function getLoginProfiles(): DemoUser[] {
+  const users = financeRepository.getUsers();
+
+  return profileRoles.flatMap((role) => {
+    const user = users.find((candidate) => candidate.role === role);
+
+    return user
+      ? [{ ...user, description: profileDescriptions[role] }]
+      : [];
+  });
+}
 
 function LoginPage() {
   const navigate = useNavigate();
   const [error, setError] = useState("");
+  const users = getLoginProfiles();
 
   if (authRepository.isAuthenticated()) return <Navigate to="/" replace />;
 
@@ -28,7 +44,7 @@ function LoginPage() {
 
   return (
     <main className="login-page">
-      <LoginForm error={error} onSubmit={handleLogin} />
+      <LoginForm error={error} users={users} onSubmit={handleLogin} />
     </main>
   );
 }
