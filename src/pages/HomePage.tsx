@@ -59,6 +59,12 @@ function HomePage() {
       ? [
           ["inicio", "Resumen"],
           ["personas", "Usuarios"],
+          ["actividades", "Gestionar actividades"],
+          ["pagos", "Registrar pagos"],
+          ["multas", "Registrar multas"],
+          ["reportes", "Generar reportes"],
+          ["categorias", "Categorías de aportes"],
+          ["configuracion", "Configurar sistema"],
         ]
       : user.role === "TESORERO"
         ? [
@@ -114,7 +120,7 @@ function HomePage() {
         )}
 
         {user.role === "ADMIN" && (
-          <AdminView section={section} students={students} refresh={refresh} />
+          <AdminView section={section} students={students} refresh={refresh} registrar={user.name} />
         )}
       </main>
     </div>
@@ -306,10 +312,12 @@ function AdminView({
   section,
   students,
   refresh,
+  registrar,
 }: {
   section: string;
   students: ReturnType<typeof financeRepository.getStudents>;
   refresh: (message: string) => void;
+  registrar: string;
 }) {
   if (section === "personas") {
     return (
@@ -320,39 +328,159 @@ function AdminView({
     );
   }
 
+  if (section === "pagos") {
+    return <PaymentForm students={students} registrar={registrar} refresh={refresh} />;
+  }
+
+  if (section === "multas") {
+    return <FineForm students={students} registrar={registrar} refresh={refresh} />;
+  }
+
+  if (section === "actividades") {
+    return <ManageList title="Gestionar actividades" storageKey="cobros_activities" placeholder="Nombre de la actividad" refresh={refresh} />;
+  }
+
+  if (section === "categorias") {
+    return <ManageList title="Gestionar categorías de aportes" storageKey="cobros_categories" placeholder="Nombre de la categoría" refresh={refresh} />;
+  }
+
+  if (section === "configuracion") {
+    return <SystemSettings refresh={refresh} />;
+  }
+
   const all = financeRepository.getUsers();
+  const payments = financeRepository.getPayments();
+  const fines = financeRepository.getFines();
+
+  if (section === "reportes") {
+    const balances = students.map((student) => ({ student, amount: financeRepository.balance(student.id) }));
+    return (
+      <>
+        <section className="cards three">
+          <StatCard label="Total recaudado" value={money.format(payments.reduce((total, item) => total + item.amount, 0))} icon="↓" />
+          <StatCard label="Total de multas/cuotas" value={money.format(fines.reduce((total, item) => total + item.amount, 0))} icon="!" />
+          <StatCard label="Estudiantes con saldo" value={String(balances.filter((item) => item.amount > 0).length)} icon="◌" />
+        </section>
+        <PaymentTable title="Reporte general de pagos" payments={[...payments].sort((a, b) => b.date.localeCompare(a.date))} />
+        <BalanceTable balances={balances} />
+      </>
+    );
+  }
 
   return (
     <>
       <section className="cards three">
-        <StatCard
-          label="Estudiantes registrados"
-          value={String(students.length)}
-          icon="◌"
-        />
-
-        <StatCard
-          label="Tesoreros activos"
-          value={String(all.filter((user) => user.role === "TESORERO").length)}
-          icon="◌"
-        />
-
-        <StatCard
-          label="Administradores"
-          value={String(all.filter((user) => user.role === "ADMIN").length)}
-          icon="◌"
-        />
+        <StatCard label="Estudiantes registrados" value={String(students.length)} icon="◌" />
+        <StatCard label="Tesoreros activos" value={String(all.filter((item) => item.role === "TESORERO").length)} icon="◌" />
+        <StatCard label="Administradores" value={String(all.filter((item) => item.role === "ADMIN").length)} icon="◌" />
       </section>
-
       <section className="welcome">
-        <h2>Administra tu sistema con facilidad</h2>
-
-        <p>
-          Utiliza el menú <strong>Usuarios</strong> para registrar estudiantes y
-          tesoreros que podrán acceder a la plataforma.
-        </p>
+        <h2>Panel de administración</h2>
+        <p>Desde el menú puedes gestionar usuarios y actividades, registrar pagos y multas, consultar reportes, administrar categorías de aportes y configurar el sistema.</p>
       </section>
     </>
+  );
+}
+
+function ManageList({
+  title,
+  storageKey,
+  placeholder,
+  refresh,
+}: {
+  title: string;
+  storageKey: string;
+  placeholder: string;
+  refresh: (message: string) => void;
+}) {
+  const [items, setItems] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) ?? "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
+  const [value, setValue] = useState("");
+
+  const save = (next: string[]) => {
+    setItems(next);
+    localStorage.setItem(storageKey, JSON.stringify(next));
+  };
+
+  const add = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = value.trim();
+    if (!name) return;
+    if (items.some((item) => item.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      refresh("Ese elemento ya existe.");
+      return;
+    }
+    save([...items, name]);
+    setValue("");
+    refresh("Elemento añadido correctamente.");
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-head"><h2>{title}</h2><span>{items.length} registrados</span></div>
+      <form className="form-grid" onSubmit={add}>
+        <label>
+          {placeholder}
+          <input value={value} onChange={(event) => setValue(event.target.value)} placeholder={placeholder} required />
+        </label>
+        <button type="submit">Añadir</button>
+      </form>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Nombre</th><th>Acciones</th></tr></thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item}>
+                <td>{item}</td>
+                <td><button type="button" onClick={() => { save(items.filter((entry) => entry !== item)); refresh("Elemento eliminado."); }}>Eliminar</button></td>
+              </tr>
+            ))}
+            {items.length === 0 && <tr><td colSpan={2}>Todavía no hay elementos registrados.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function SystemSettings({ refresh }: { refresh: (message: string) => void }) {
+  const [institution, setInstitution] = useState(() => localStorage.getItem("cobros_institution") ?? "Gestión estudiantil");
+  const [currency, setCurrency] = useState(() => localStorage.getItem("cobros_currency") ?? "BOB");
+  const [period, setPeriod] = useState(() => localStorage.getItem("cobros_period") ?? "2026");
+
+  const save = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    localStorage.setItem("cobros_institution", institution.trim());
+    localStorage.setItem("cobros_currency", currency);
+    localStorage.setItem("cobros_period", period.trim());
+    refresh("Configuración guardada en este navegador.");
+  };
+
+  return (
+    <section className="panel">
+      <div className="panel-head"><h2>Configurar sistema</h2><span>Preferencias generales</span></div>
+      <form className="form-grid" onSubmit={save}>
+        <label>Nombre de la institución
+          <input value={institution} onChange={(event) => setInstitution(event.target.value)} required />
+        </label>
+        <label>Moneda
+          <select value={currency} onChange={(event) => setCurrency(event.target.value)}>
+            <option value="BOB">Bolivianos (BOB)</option>
+            <option value="USD">Dólares (USD)</option>
+          </select>
+        </label>
+        <label>Gestión o periodo
+          <input value={period} onChange={(event) => setPeriod(event.target.value)} required />
+        </label>
+        <button type="submit">Guardar configuración</button>
+      </form>
+      <p>Estas preferencias se guardan localmente en el navegador actual.</p>
+    </section>
   );
 }
 
