@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { authRepository } from "../repositories/authRepository";
 import { financeRepository } from "../repositories/financeRepository";
@@ -407,7 +407,7 @@ function ManageList({
     localStorage.setItem(storageKey, JSON.stringify(next));
   };
 
-  const add = (event: React.FormEvent<HTMLFormElement>) => {
+  const add = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = value.trim();
     if (!name) return;
@@ -453,7 +453,7 @@ function SystemSettings({ refresh }: { refresh: (message: string) => void }) {
   const [currency, setCurrency] = useState(() => localStorage.getItem("cobros_currency") ?? "BOB");
   const [period, setPeriod] = useState(() => localStorage.getItem("cobros_period") ?? "2026");
 
-  const save = (event: React.FormEvent<HTMLFormElement>) => {
+  const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     localStorage.setItem("cobros_institution", institution.trim());
     localStorage.setItem("cobros_currency", currency);
