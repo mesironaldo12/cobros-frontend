@@ -5,6 +5,8 @@ export interface User {
   name: string;
   carnet: string;
   role: UserRole;
+  school?: string;
+  course?: string;
 }
 
 export interface UserRecord extends User {

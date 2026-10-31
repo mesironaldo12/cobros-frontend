@@ -6,6 +6,7 @@ import Sidebar from "../components/layout/Sidebar";
 import Header from "../components/layout/Header";
 import PaymentTable from "../components/payments/PaymentTable";
 import PaymentForm from "../components/payments/PaymentForm";
+import PaymentReports from "../components/payments/PaymentReports";
 import FineForm from "../components/fines/FineForm";
 import StatCard from "../components/dashboard/StatCard";
 import UserForm from "../components/users/UserForm";
@@ -120,7 +121,12 @@ function HomePage() {
         )}
 
         {user.role === "ADMIN" && (
-          <AdminView section={section} students={students} refresh={refresh} registrar={user.name} />
+          <AdminView
+            section={section}
+            students={students}
+            refresh={refresh}
+            registrar={user.name}
+          />
         )}
       </main>
     </div>
@@ -148,6 +154,10 @@ function StudentView({
     return <PaymentTable payments={mine} title="Historial de pagos" />;
   }
 
+  const paidMine = mine.filter(
+    (payment) => (payment.status ?? "PAGADO") === "PAGADO",
+  );
+
   return (
     <>
       <section className="hero-balance">
@@ -170,14 +180,14 @@ function StudentView({
         <StatCard
           label="Pagado este periodo"
           value={money.format(
-            mine.reduce((total, payment) => total + payment.amount, 0),
+            paidMine.reduce((total, payment) => total + payment.amount, 0),
           )}
           icon="↓"
         />
 
         <StatCard
           label="Pagos realizados"
-          value={String(mine.length)}
+          value={String(paidMine.length)}
           icon="✓"
         />
 
@@ -236,13 +246,20 @@ function TreasurerView({
   }
 
   if (section === "reportes") {
+    const paidPayments = payments.filter(
+      (payment) => (payment.status ?? "PAGADO") === "PAGADO",
+    );
+
     return (
       <>
         <section className="cards three">
           <StatCard
             label="Recaudado"
             value={money.format(
-              payments.reduce((total, payment) => total + payment.amount, 0),
+              paidPayments.reduce(
+                (total, payment) => total + payment.amount,
+                0,
+              ),
             )}
             icon="↓"
           />
@@ -262,24 +279,25 @@ function TreasurerView({
           />
         </section>
 
-        <PaymentTable
-          title="Reporte de pagos"
-          payments={[...payments].sort((a, b) => b.date.localeCompare(a.date))}
-        />
+        <PaymentReports payments={payments} />
       </>
     );
   }
+
+  const paidToday = payments
+    .filter(
+      (payment) =>
+        payment.date === today &&
+        (payment.status ?? "PAGADO") === "PAGADO",
+    )
+    .reduce((total, payment) => total + payment.amount, 0);
 
   return (
     <>
       <section className="cards three">
         <StatCard
           label="Cobrado hoy"
-          value={money.format(
-            payments
-              .filter((payment) => payment.date === today)
-              .reduce((total, payment) => total + payment.amount, 0),
-          )}
+          value={money.format(paidToday)}
           icon="↓"
         />
 
@@ -329,7 +347,13 @@ function AdminView({
   }
 
   if (section === "pagos") {
-    return <PaymentForm students={students} registrar={registrar} refresh={refresh} />;
+    return (
+      <PaymentForm
+        students={students}
+        registrar={registrar}
+        refresh={refresh}
+      />
+    );
   }
 
   if (section === "multas") {
@@ -337,11 +361,26 @@ function AdminView({
   }
 
   if (section === "actividades") {
-    return <ManageList title="Gestionar actividades" storageKey="cobros_activities" placeholder="Nombre de la actividad" refresh={refresh} />;
+    return (
+      <ManageList
+        title="Gestionar actividades"
+        storageKey="cobros_activities"
+        placeholder="Nombre de la actividad"
+        refresh={refresh}
+        showStatus
+      />
+    );
   }
 
   if (section === "categorias") {
-    return <ManageList title="Gestionar categorías de aportes" storageKey="cobros_categories" placeholder="Nombre de la categoría" refresh={refresh} />;
+    return (
+      <ManageList
+        title="Gestionar categorías de aportes"
+        storageKey="cobros_categories"
+        placeholder="Nombre de la categoría"
+        refresh={refresh}
+      />
+    );
   }
 
   if (section === "configuracion") {
@@ -353,15 +392,47 @@ function AdminView({
   const fines = financeRepository.getFines();
 
   if (section === "reportes") {
-    const balances = students.map((student) => ({ student, amount: financeRepository.balance(student.id) }));
+    const balances = students.map((student) => ({
+      student,
+      amount: financeRepository.balance(student.id),
+    }));
+
+    const paidPayments = payments.filter(
+      (payment) => (payment.status ?? "PAGADO") === "PAGADO",
+    );
+
     return (
       <>
         <section className="cards three">
-          <StatCard label="Total recaudado" value={money.format(payments.reduce((total, item) => total + item.amount, 0))} icon="↓" />
-          <StatCard label="Total de multas/cuotas" value={money.format(fines.reduce((total, item) => total + item.amount, 0))} icon="!" />
-          <StatCard label="Estudiantes con saldo" value={String(balances.filter((item) => item.amount > 0).length)} icon="◌" />
+          <StatCard
+            label="Total recaudado"
+            value={money.format(
+              paidPayments.reduce(
+                (total, payment) => total + payment.amount,
+                0,
+              ),
+            )}
+            icon="↓"
+          />
+
+          <StatCard
+            label="Total de multas/cuotas"
+            value={money.format(
+              fines.reduce((total, fine) => total + fine.amount, 0),
+            )}
+            icon="!"
+          />
+
+          <StatCard
+            label="Estudiantes con saldo"
+            value={String(
+              balances.filter((item) => item.amount > 0).length,
+            )}
+            icon="◌"
+          />
         </section>
-        <PaymentTable title="Reporte general de pagos" payments={[...payments].sort((a, b) => b.date.localeCompare(a.date))} />
+
+        <PaymentReports payments={payments} />
         <BalanceTable balances={balances} />
       </>
     );
@@ -370,13 +441,34 @@ function AdminView({
   return (
     <>
       <section className="cards three">
-        <StatCard label="Estudiantes registrados" value={String(students.length)} icon="◌" />
-        <StatCard label="Tesoreros activos" value={String(all.filter((item) => item.role === "TESORERO").length)} icon="◌" />
-        <StatCard label="Administradores" value={String(all.filter((item) => item.role === "ADMIN").length)} icon="◌" />
+        <StatCard
+          label="Estudiantes registrados"
+          value={String(students.length)}
+          icon="◌"
+        />
+
+        <StatCard
+          label="Tesoreros activos"
+          value={String(
+            all.filter((item) => item.role === "TESORERO").length,
+          )}
+          icon="◌"
+        />
+
+        <StatCard
+          label="Administradores"
+          value={String(all.filter((item) => item.role === "ADMIN").length)}
+          icon="◌"
+        />
       </section>
+
       <section className="welcome">
         <h2>Panel de administración</h2>
-        <p>Desde el menú puedes gestionar usuarios y actividades, registrar pagos y multas, consultar reportes, administrar categorías de aportes y configurar el sistema.</p>
+        <p>
+          Desde el menú puedes gestionar usuarios y actividades, registrar
+          pagos y multas, consultar reportes, administrar categorías de aportes
+          y configurar el sistema.
+        </p>
       </section>
     </>
   );
@@ -387,12 +479,16 @@ function ManageList({
   storageKey,
   placeholder,
   refresh,
+  showStatus = false,
 }: {
   title: string;
   storageKey: string;
   placeholder: string;
   refresh: (message: string) => void;
+  showStatus?: boolean;
 }) {
+  const statusStorageKey = `${storageKey}_status`;
+
   const [items, setItems] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem(storageKey) ?? "[]") as string[];
@@ -400,6 +496,17 @@ function ManageList({
       return [];
     }
   });
+
+  const [statuses, setStatuses] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem(statusStorageKey) ?? "{}",
+      ) as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  });
+
   const [value, setValue] = useState("");
 
   const save = (next: string[]) => {
@@ -409,38 +516,123 @@ function ManageList({
 
   const add = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     const name = value.trim();
+
     if (!name) return;
-    if (items.some((item) => item.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+
+    if (
+      items.some(
+        (item) => item.toLocaleLowerCase() === name.toLocaleLowerCase(),
+      )
+    ) {
       refresh("Ese elemento ya existe.");
       return;
     }
+
     save([...items, name]);
     setValue("");
     refresh("Elemento añadido correctamente.");
   };
 
+  const toggleStatus = (item: string) => {
+    const nextStatuses = {
+      ...statuses,
+      [item]: statuses[item] === false,
+    };
+
+    setStatuses(nextStatuses);
+    localStorage.setItem(statusStorageKey, JSON.stringify(nextStatuses));
+    refresh(
+      nextStatuses[item] ? "Actividad activada." : "Actividad desactivada.",
+    );
+  };
+
+  const remove = (item: string) => {
+    save(items.filter((entry) => entry !== item));
+
+    if (showStatus) {
+      const nextStatuses = { ...statuses };
+      delete nextStatuses[item];
+      setStatuses(nextStatuses);
+      localStorage.setItem(statusStorageKey, JSON.stringify(nextStatuses));
+    }
+
+    refresh("Elemento eliminado.");
+  };
+
   return (
     <section className="panel">
-      <div className="panel-head"><h2>{title}</h2><span>{items.length} registrados</span></div>
+      <div className="panel-head">
+        <h2>{title}</h2>
+        <span>{items.length} registrados</span>
+      </div>
+
       <form className="form-grid" onSubmit={add}>
         <label>
           {placeholder}
-          <input value={value} onChange={(event) => setValue(event.target.value)} placeholder={placeholder} required />
+          <input
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder={placeholder}
+            required
+          />
         </label>
+
         <button type="submit">Añadir</button>
       </form>
+
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Nombre</th><th>Acciones</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              {showStatus && <th>Estado</th>}
+              <th>Acciones</th>
+            </tr>
+          </thead>
+
           <tbody>
-            {items.map((item) => (
-              <tr key={item}>
-                <td>{item}</td>
-                <td><button type="button" onClick={() => { save(items.filter((entry) => entry !== item)); refresh("Elemento eliminado."); }}>Eliminar</button></td>
+            {items.map((item) => {
+              const isActive = statuses[item] !== false;
+
+              return (
+                <tr key={item}>
+                  <td>{item}</td>
+
+                  {showStatus && (
+                    <td>
+                      <b className={`tag ${isActive ? "paid" : "due"}`}>
+                        {isActive ? "Activa" : "Inactiva"}
+                      </b>
+                    </td>
+                  )}
+
+                  <td>
+                    {showStatus && (
+                      <button
+                        type="button"
+                        onClick={() => toggleStatus(item)}
+                      >
+                        {isActive ? "Desactivar" : "Activar"}
+                      </button>
+                    )}
+
+                    <button type="button" onClick={() => remove(item)}>
+                      Eliminar
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={showStatus ? 3 : 2}>
+                  Todavía no hay elementos registrados.
+                </td>
               </tr>
-            ))}
-            {items.length === 0 && <tr><td colSpan={2}>Todavía no hay elementos registrados.</td></tr>}
+            )}
           </tbody>
         </table>
       </div>
@@ -449,9 +641,15 @@ function ManageList({
 }
 
 function SystemSettings({ refresh }: { refresh: (message: string) => void }) {
-  const [institution, setInstitution] = useState(() => localStorage.getItem("cobros_institution") ?? "Gestión estudiantil");
-  const [currency, setCurrency] = useState(() => localStorage.getItem("cobros_currency") ?? "BOB");
-  const [period, setPeriod] = useState(() => localStorage.getItem("cobros_period") ?? "2026");
+  const [institution, setInstitution] = useState(
+    () => localStorage.getItem("cobros_institution") ?? "Gestión estudiantil",
+  );
+  const [currency, setCurrency] = useState(
+    () => localStorage.getItem("cobros_currency") ?? "BOB",
+  );
+  const [period, setPeriod] = useState(
+    () => localStorage.getItem("cobros_period") ?? "2026",
+  );
 
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -463,22 +661,44 @@ function SystemSettings({ refresh }: { refresh: (message: string) => void }) {
 
   return (
     <section className="panel">
-      <div className="panel-head"><h2>Configurar sistema</h2><span>Preferencias generales</span></div>
+      <div className="panel-head">
+        <h2>Configurar sistema</h2>
+        <span>Preferencias generales</span>
+      </div>
+
       <form className="form-grid" onSubmit={save}>
-        <label>Nombre de la institución
-          <input value={institution} onChange={(event) => setInstitution(event.target.value)} required />
+        <label>
+          Nombre de la institución
+          <input
+            value={institution}
+            onChange={(event) => setInstitution(event.target.value)}
+            required
+          />
         </label>
-        <label>Moneda
-          <select value={currency} onChange={(event) => setCurrency(event.target.value)}>
+
+        <label>
+          Moneda
+          <select
+            value={currency}
+            onChange={(event) => setCurrency(event.target.value)}
+          >
             <option value="BOB">Bolivianos (BOB)</option>
             <option value="USD">Dólares (USD)</option>
           </select>
         </label>
-        <label>Gestión o periodo
-          <input value={period} onChange={(event) => setPeriod(event.target.value)} required />
+
+        <label>
+          Gestión o periodo
+          <input
+            value={period}
+            onChange={(event) => setPeriod(event.target.value)}
+            required
+          />
         </label>
+
         <button type="submit">Guardar configuración</button>
       </form>
+
       <p>Estas preferencias se guardan localmente en el navegador actual.</p>
     </section>
   );

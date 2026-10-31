@@ -30,6 +30,15 @@ export const financeRepository = {
     storageService.set(USERS_KEY, [...getUsers(), user]);
     return user;
   },
+  updateUser(id: string, data: Partial<Omit<UserRecord, "id">>) {
+  const updatedUsers = getUsers().map((user) =>
+    user.id === id ? { ...user, ...data } : user,
+  );
+
+  storageService.set(USERS_KEY, updatedUsers);
+
+  return updatedUsers.find((user) => user.id === id) ?? null;
+  },
   addPayment(data: Omit<Payment, "id">) {
     storageService.set(PAYMENTS_KEY, [...this.getPayments(), { ...data, id: id("payment") }]);
   },
@@ -37,9 +46,16 @@ export const financeRepository = {
     storageService.set(FINES_KEY, [...this.getFines(), { ...data, id: id("fine") }]);
   },
   balance(studentId: string) {
-    const paid = this.getPayments().filter((item) => item.studentId === studentId).reduce((total, item) => total + item.amount, 0);
+    const paid = this.getPayments()
+      .filter(
+        (item) =>
+          item.studentId === studentId &&
+          (item.status ?? "PAGADO") === "PAGADO",
+      )
+      .reduce((total, item) => total + item.amount, 0);
     const owed = this.getFines().filter((item) => item.studentId === studentId).reduce((total, item) => total + item.amount, 0);
-    return owed - paid;
+    
+    return Math.max(owed - paid, 0);
   },
   roleLabel(role: UserRole) {
     return { ADMIN: "Administrador", TESORERO: "Tesorero", ESTUDIANTE: "Estudiante" }[role];

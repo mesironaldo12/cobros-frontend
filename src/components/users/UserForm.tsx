@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { financeRepository } from "../../repositories/financeRepository";
 import type { UserRole } from "../../types/auth";
 
@@ -7,6 +7,8 @@ type Props = {
 };
 
 export default function UserForm({ refresh }: Props) {
+  const [role, setRole] = useState<UserRole>("ESTUDIANTE");
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -14,13 +16,18 @@ export default function UserForm({ refresh }: Props) {
     const data = new FormData(form);
 
     financeRepository.addUser({
-      name: String(data.get("name")),
-      carnet: String(data.get("carnet")),
+      name: String(data.get("name")).trim(),
+      carnet: String(data.get("carnet")).trim(),
       password: String(data.get("password")),
-      role: String(data.get("role")) as UserRole,
+      role,
+      school:
+        role === "ESTUDIANTE" ? String(data.get("school")).trim() : undefined,
+      course:
+        role === "ESTUDIANTE" ? String(data.get("course")).trim() : undefined,
     });
 
     form.reset();
+    setRole("ESTUDIANTE");
     refresh("Usuario añadido correctamente.");
   };
 
@@ -48,7 +55,11 @@ export default function UserForm({ refresh }: Props) {
         <div className="form-row">
           <label>
             Rol
-            <select name="role" defaultValue="ESTUDIANTE">
+            <select
+              name="role"
+              value={role}
+              onChange={(event) => setRole(event.target.value as UserRole)}
+            >
               <option value="ESTUDIANTE">Estudiante</option>
               <option value="TESORERO">Tesorero</option>
             </select>
@@ -65,6 +76,20 @@ export default function UserForm({ refresh }: Props) {
             />
           </label>
         </div>
+
+        {role === "ESTUDIANTE" && (
+          <div className="form-row">
+            <label>
+              Escuela
+              <input name="school" required placeholder="Nombre de la escuela" />
+            </label>
+
+            <label>
+              Curso
+              <input name="course" required placeholder="Ej. 4to A" />
+            </label>
+          </div>
+        )}
 
         <button className="primary" type="submit">
           Añadir usuario
