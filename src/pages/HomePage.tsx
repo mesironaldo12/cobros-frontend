@@ -11,6 +11,7 @@ import FineForm from "../components/fines/FineForm";
 import StatCard from "../components/dashboard/StatCard";
 import UserForm from "../components/users/UserForm";
 import UserTable from "../components/users/UserTable";
+import FineHistoryTable from "../components/fines/FineHistoryTable";
 
 const money = new Intl.NumberFormat("es-BO", {
   style: "currency",
@@ -78,6 +79,7 @@ function HomePage() {
         : [
             ["inicio", "Mi saldo"],
             ["historial", "Historial de pagos"],
+            ["historial-multas", "Historial de multas"],
           ];
 
   return (
@@ -153,6 +155,13 @@ function StudentView({
   if (section === "historial") {
     return <PaymentTable payments={mine} title="Historial de pagos" />;
   }
+  if (section === "historial-multas") {
+    const myFines = fines
+      .filter((fine) => fine.studentId === userId)
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    return <FineHistoryTable fines={myFines} title="Historial de multas" />;
+  }
 
   const paidMine = mine.filter(
     (payment) => (payment.status ?? "PAGADO") === "PAGADO",
@@ -194,7 +203,11 @@ function StudentView({
         <StatCard
           label="Multas pendientes"
           value={String(
-            fines.filter((fine) => fine.studentId === userId).length,
+              fines.filter(
+              (fine) =>
+                fine.studentId === userId &&
+                (fine.status ?? "PENDIENTE") === "PENDIENTE",
+            ).length
           )}
           icon="!"
         />
@@ -341,7 +354,7 @@ function AdminView({
     return (
       <>
         <UserForm refresh={refresh} />
-        <UserTable />
+        <UserTable refresh={refresh} />
       </>
     );
   }
@@ -508,10 +521,12 @@ function ManageList({
   });
 
   const [value, setValue] = useState("");
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
-  const save = (next: string[]) => {
-    setItems(next);
-    localStorage.setItem(storageKey, JSON.stringify(next));
+  const saveItems = (nextItems: string[]) => {
+    setItems(nextItems);
+    localStorage.setItem(storageKey, JSON.stringify(nextItems));
   };
 
   const add = (event: FormEvent<HTMLFormElement>) => {
@@ -530,7 +545,7 @@ function ManageList({
       return;
     }
 
-    save([...items, name]);
+    saveItems([...items, name]);
     setValue("");
     refresh("Elemento añadido correctamente.");
   };
@@ -548,14 +563,80 @@ function ManageList({
     );
   };
 
+  const startEditing = (item: string) => {
+    setEditingItem(item);
+    setEditValue(item);
+  };
+
+  const cancelEditing = () => {
+    setEditingItem(null);
+    setEditValue("");
+  };
+
+  const saveEdit = (oldName: string) => {
+    const newName = editValue.trim();
+
+    if (!newName) {
+      refresh("El nombre no puede estar vacío.");
+      return;
+    }
+
+    const alreadyExists = items.some(
+      (item) =>
+        item !== oldName &&
+        item.toLocaleLowerCase() === newName.toLocaleLowerCase(),
+    );
+
+    if (alreadyExists) {
+      refresh("Ya existe un elemento con ese nombre.");
+      return;
+    }
+
+    if (newName === oldName) {
+      cancelEditing();
+      return;
+    }
+
+    saveItems(items.map((item) => (item === oldName ? newName : item)));
+
+    if (showStatus) {
+      const nextStatuses = { ...statuses };
+
+      if (Object.prototype.hasOwnProperty.call(nextStatuses, oldName)) {
+        nextStatuses[newName] = nextStatuses[oldName];
+        delete nextStatuses[oldName];
+      }
+
+      setStatuses(nextStatuses);
+      localStorage.setItem(statusStorageKey, JSON.stringify(nextStatuses));
+
+      if (storageKey === "cobros_activities") {
+        financeRepository.renameActivity(oldName, newName);
+      }
+    }
+
+    cancelEditing();
+    refresh("Elemento actualizado correctamente.");
+  };
+
   const remove = (item: string) => {
-    save(items.filter((entry) => entry !== item));
+    const confirmed = window.confirm(
+      `¿Quieres eliminar "${item}"?`,
+    );
+
+    if (!confirmed) return;
+
+    saveItems(items.filter((entry) => entry !== item));
 
     if (showStatus) {
       const nextStatuses = { ...statuses };
       delete nextStatuses[item];
       setStatuses(nextStatuses);
       localStorage.setItem(statusStorageKey, JSON.stringify(nextStatuses));
+    }
+
+    if (editingItem === item) {
+      cancelEditing();
     }
 
     refresh("Elemento eliminado.");
@@ -595,10 +676,21 @@ function ManageList({
           <tbody>
             {items.map((item) => {
               const isActive = statuses[item] !== false;
+              const isEditing = editingItem === item;
 
               return (
                 <tr key={item}>
-                  <td>{item}</td>
+                  <td>
+                    {isEditing ? (
+                      <input
+                        value={editValue}
+                        onChange={(event) => setEditValue(event.target.value)}
+                        autoFocus
+                      />
+                    ) : (
+                      item
+                    )}
+                  </td>
 
                   {showStatus && (
                     <td>
@@ -609,18 +701,42 @@ function ManageList({
                   )}
 
                   <td>
-                    {showStatus && (
-                      <button
-                        type="button"
-                        onClick={() => toggleStatus(item)}
-                      >
-                        {isActive ? "Desactivar" : "Activar"}
-                      </button>
-                    )}
+                    {isEditing ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => saveEdit(item)}
+                        >
+                          Guardar
+                        </button>
 
-                    <button type="button" onClick={() => remove(item)}>
-                      Eliminar
-                    </button>
+                        <button type="button" onClick={cancelEditing}>
+                          Cancelar
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {showStatus && (
+                          <button
+                            type="button"
+                            onClick={() => toggleStatus(item)}
+                          >
+                            {isActive ? "Desactivar" : "Activar"}
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => startEditing(item)}
+                        >
+                          Editar
+                        </button>
+
+                        <button type="button" onClick={() => remove(item)}>
+                          Eliminar
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               );

@@ -29,7 +29,6 @@ export default function PaymentTable({ payments, title }: Props) {
           <thead>
             <tr>
               <th>Fecha</th>
-              
               <th>Hora</th>
               <th>Estudiante</th>
               <th>Escuela</th>
@@ -58,20 +57,17 @@ export default function PaymentTable({ payments, title }: Props) {
                           ).toLocaleDateString("es-BO")
                         : "—"}
                     </td>
-
                     <td>{payment.time || "—"}</td>
                     <td>{student?.name ?? "Estudiante no encontrado"}</td>
                     <td>{student?.school || "—"}</td>
                     <td>{student?.course || "—"}</td>
                     <td>{payment.concept}</td>
                     <td className="amount">{money.format(payment.amount)}</td>
-
                     <td>
                       <b className={`tag ${isPaid ? "paid" : "due"}`}>
                         {isPaid ? "Pagado" : "Pendiente"}
                       </b>
                     </td>
-
                     <td>
                       {payment.observations && (
                         <details>
@@ -80,13 +76,6 @@ export default function PaymentTable({ payments, title }: Props) {
                         </details>
                       )}
                       <small>Registrado por: {payment.registeredBy}</small>
-                    </td>
-                    <td>
-                      {payment.collectionStartDate
-                        ? new Date(
-                            `${payment.collectionStartDate}T12:00:00`,
-                          ).toLocaleDateString("es-BO")
-                        : "—"}
                     </td>
                   </tr>
                 );

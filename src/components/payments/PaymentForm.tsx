@@ -133,7 +133,6 @@ export default function PaymentForm({
       concept,
       amount,
       date: String(data.get("date")),
-      collectionStartDate: String(data.get("collectionStartDate")),
       time: String(data.get("time")),
       status: String(data.get("status")) as "PAGADO" | "PENDIENTE",
       observations: String(data.get("observations")).trim(),
@@ -208,7 +207,10 @@ export default function PaymentForm({
               ))}
             </select>
           ) : hasConfiguredActivities ? (
-            <p>No hay actividades activas. Activa una desde “Gestionar actividades”.</p>
+            <p>
+              No hay actividades activas. Activa una desde “Gestionar
+              actividades”.
+            </p>
           ) : (
             <input
               name="concept"
@@ -240,27 +242,22 @@ export default function PaymentForm({
           </label>
         </div>
 
-        <label>
-  Fecha de inicio de cobro (opcional)
-  <input name="collectionStartDate" type="date" />
-</label>
+        <div className="form-row">
+          <label>
+            Fecha de pago
+            <input
+              name="date"
+              type="date"
+              required
+              defaultValue={getLocalDate()}
+            />
+          </label>
 
-<div className="form-row">
-  <label>
-    Fecha de pago
-    <input
-      name="date"
-      type="date"
-      required
-      defaultValue={getLocalDate()}
-    />
-  </label>
-
-  <label>
-    Hora de pago
-    <input name="time" type="time" />
-  </label>
-</div>
+          <label>
+            Hora de pago
+            <input name="time" type="time" />
+          </label>
+        </div>
 
         <label>
           Observaciones
