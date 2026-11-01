@@ -1,4 +1,3 @@
-import { storageService } from "../services/storageService";
 import type { LoginCredentials, User } from "../types/auth";
 import { financeRepository } from "./financeRepository";
 
@@ -23,17 +22,24 @@ export const authRepository = {
       role: foundUser.role,
     };
 
-    storageService.set<User>(SESSION_KEY, sessionUser);
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
 
     return sessionUser;
   },
 
   logout(): void {
-    storageService.remove(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
   },
 
   getCurrentUser(): User | null {
-    return storageService.get<User>(SESSION_KEY);
+    try {
+      const savedSession = sessionStorage.getItem(SESSION_KEY);
+
+      return savedSession ? (JSON.parse(savedSession) as User) : null;
+    } catch {
+      sessionStorage.removeItem(SESSION_KEY);
+      return null;
+    }
   },
 
   isAuthenticated(): boolean {

@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { financeRepository } from "../../repositories/financeRepository";
 import type { UserRecord } from "../../types/auth";
+import PaymentTable from "./PaymentTable";
 
 type Props = {
   students: UserRecord[];
   registrar: string;
   refresh: (message: string) => void;
+  onMarkPaid?: (paymentId: string) => void;
 };
 
 const ACTIVITIES_KEY = "cobros_activities";
@@ -73,6 +75,7 @@ export default function PaymentForm({
   students,
   registrar,
   refresh,
+  onMarkPaid,
 }: Props) {
   const [activityData] = useState<ActivityData>(getActivityData);
   const { allActivities, activeActivities } = activityData;
@@ -101,6 +104,12 @@ export default function PaymentForm({
     !filteredStudents.some((student) => student.id === selectedStudentId)
       ? [selectedStudent, ...filteredStudents]
       : filteredStudents;
+
+  const selectedPayments = selectedStudentId
+    ? financeRepository
+        .getPayments()
+        .filter((payment) => payment.studentId === selectedStudentId)
+    : [];
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -147,135 +156,145 @@ export default function PaymentForm({
   };
 
   return (
-    <section className="form-panel">
-      <div>
-        <p className="eyebrow">Tesorería</p>
-        <h2>Registrar cobro</h2>
-        <p>Busca al estudiante y registra el detalle del cobro.</p>
-      </div>
+    <>
+      <section className="form-panel">
+        <div>
+          <p className="eyebrow">Tesorería</p>
+          <h2>Registrar cobro</h2>
+          <p>Busca al estudiante y registra el detalle del cobro.</p>
+        </div>
 
-      <form onSubmit={submit}>
-        <label>
-          Buscar estudiante por nombre o carnet
-          <input
-            type="search"
-            value={studentSearch}
-            onChange={(event) => setStudentSearch(event.target.value)}
-            placeholder="Escribe un nombre o carnet"
-          />
-        </label>
+        <form onSubmit={submit}>
+          <label>
+            Buscar estudiante por nombre o carnet
+            <input
+              type="search"
+              value={studentSearch}
+              onChange={(event) => setStudentSearch(event.target.value)}
+              placeholder="Escribe un nombre o carnet"
+            />
+          </label>
 
-        <label>
-          Estudiante
-          <select
-            name="student"
-            value={selectedStudentId}
-            onChange={(event) => setSelectedStudentId(event.target.value)}
-            required
-          >
-            <option value="" disabled>
-              Selecciona un estudiante
-            </option>
-
-            {visibleStudents.map((student) => (
-              <option key={student.id} value={student.id}>
-                {student.name} · {student.carnet}
-                {student.school ? ` · ${student.school}` : ""}
-                {student.course ? ` · ${student.course}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Actividad o concepto
-          {activeActivities.length > 0 ? (
+          <label>
+            Estudiante
             <select
-              name="activity"
-              value={selectedActivity}
-              onChange={(event) => setSelectedActivity(event.target.value)}
+              name="student"
+              value={selectedStudentId}
+              onChange={(event) => setSelectedStudentId(event.target.value)}
               required
             >
               <option value="" disabled>
-                Selecciona una actividad
+                Selecciona un estudiante
               </option>
 
-              {activeActivities.map((activity) => (
-                <option key={activity} value={activity}>
-                  {activity}
+              {visibleStudents.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.name} · {student.carnet}
+                  {student.school ? ` · ${student.school}` : ""}
+                  {student.course ? ` · ${student.course}` : ""}
                 </option>
               ))}
             </select>
-          ) : hasConfiguredActivities ? (
-            <p>
-              No hay actividades activas. Activa una desde “Gestionar
-              actividades”.
-            </p>
-          ) : (
-            <input
-              name="concept"
-              required
-              placeholder="Ej. Moles Curso"
+          </label>
+
+          <label>
+            Actividad o concepto
+            {activeActivities.length > 0 ? (
+              <select
+                name="activity"
+                value={selectedActivity}
+                onChange={(event) => setSelectedActivity(event.target.value)}
+                required
+              >
+                <option value="" disabled>
+                  Selecciona una actividad
+                </option>
+
+                {activeActivities.map((activity) => (
+                  <option key={activity} value={activity}>
+                    {activity}
+                  </option>
+                ))}
+              </select>
+            ) : hasConfiguredActivities ? (
+              <p>
+                No hay actividades activas. Activa una desde “Gestionar
+                actividades”.
+              </p>
+            ) : (
+              <input
+                name="concept"
+                required
+                placeholder="Ej. Moles Curso"
+              />
+            )}
+          </label>
+
+          <div className="form-row">
+            <label>
+              Monto (Bs.) *
+              <input
+                name="amount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                required
+                placeholder="0.00"
+              />
+            </label>
+
+            <label>
+              Estado del cobro
+              <select name="status" defaultValue="PAGADO" required>
+                <option value="PAGADO">Pagado</option>
+                <option value="PENDIENTE">Pendiente</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="form-row">
+            <label>
+              Fecha de pago
+              <input
+                name="date"
+                type="date"
+                required
+                defaultValue={getLocalDate()}
+              />
+            </label>
+
+            <label>
+              Hora de pago
+              <input name="time" type="time" />
+            </label>
+          </div>
+
+          <label>
+            Observaciones
+            <textarea
+              name="observations"
+              rows={3}
+              placeholder="Detalles adicionales del cobro"
             />
-          )}
-        </label>
-
-        <div className="form-row">
-          <label>
-            Monto (Bs.) *
-            <input
-              name="amount"
-              type="number"
-              min="0.01"
-              step="0.01"
-              required
-              placeholder="0.00"
-            />
           </label>
 
-          <label>
-            Estado del cobro
-            <select name="status" defaultValue="PAGADO" required>
-              <option value="PAGADO">Pagado</option>
-              <option value="PENDIENTE">Pendiente</option>
-            </select>
-          </label>
-        </div>
+          <button
+            className="primary"
+            type="submit"
+            disabled={hasConfiguredActivities && activeActivities.length === 0}
+          >
+            Registrar cobro
+          </button>
+        </form>
+      </section>
 
-        <div className="form-row">
-          <label>
-            Fecha de pago
-            <input
-              name="date"
-              type="date"
-              required
-              defaultValue={getLocalDate()}
-            />
-          </label>
-
-          <label>
-            Hora de pago
-            <input name="time" type="time" />
-          </label>
-        </div>
-
-        <label>
-          Observaciones
-          <textarea
-            name="observations"
-            rows={3}
-            placeholder="Detalles adicionales del cobro"
-          />
-        </label>
-
-        <button
-          className="primary"
-          type="submit"
-          disabled={hasConfiguredActivities && activeActivities.length === 0}
-        >
-          Registrar cobro
-        </button>
-      </form>
-    </section>
+      {selectedStudentId && (
+        <PaymentTable
+          payments={selectedPayments}
+          title={`Cobros de ${selectedStudent?.name ?? "estudiante"}`}
+          onMarkPaid={onMarkPaid}
+        />
+      )}
+    </>
   );
 }

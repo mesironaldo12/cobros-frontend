@@ -73,89 +73,14 @@ export const financeRepository = {
 
   getFines() {
     const fines = storageService.get<Fine[]>(FINES_KEY) ?? seedFines;
-    let payments = this.getPayments();
-
-    // Enlaza un pago antiguo con concepto genérico "Multa"
-    // solo si coincide de forma única con una multa por estudiante y monto.
-    const genericPayments = payments.filter(
-      (payment) =>
-        !payment.fineId &&
-        payment.concept.trim().toLocaleLowerCase() === "multa" &&
-        (payment.status ?? "PAGADO") === "PAGADO",
-    );
-
-    const matchesByPayment = genericPayments.map((payment) => ({
-      payment,
-      candidates: fines.filter((fine) => {
-        const alreadyHasPayment = payments.some(
-          (existingPayment) =>
-            (existingPayment.fineId === fine.id ||
-              (!existingPayment.fineId &&
-                existingPayment.studentId === fine.studentId &&
-                existingPayment.concept.trim().toLocaleLowerCase() ===
-                  fine.concept.trim().toLocaleLowerCase())) &&
-            (existingPayment.status ?? "PAGADO") === "PAGADO",
-        );
-
-        return (
-          !alreadyHasPayment &&
-          fine.studentId === payment.studentId &&
-          fine.amount === payment.amount &&
-          fine.concept.trim().toLocaleLowerCase() !== "multa"
-        );
-      }),
-    }));
-
-    const uniqueMatches = matchesByPayment.filter(({ candidates }) => {
-      if (candidates.length !== 1) return false;
-
-      const fine = candidates[0];
-
-      // También exige que solo haya un pago genérico que coincida con esta multa.
-      const otherPaymentsForFine = matchesByPayment.filter(({ candidates: other }) =>
-        other.some((candidate) => candidate.id === fine.id),
-      );
-
-      return otherPaymentsForFine.length === 1;
-    });
-
-    if (uniqueMatches.length > 0) {
-      const linkedPaymentIds = new Map(
-        uniqueMatches.map(({ payment, candidates }) => [
-          payment.id,
-          candidates[0],
-        ]),
-      );
-
-      payments = payments.map((payment) => {
-        const fine = linkedPaymentIds.get(payment.id);
-
-        return fine
-          ? {
-              ...payment,
-              concept: fine.concept,
-              fineId: fine.id,
-            }
-          : payment;
-      });
-
-      storageService.set(PAYMENTS_KEY, payments);
-    }
+    const payments = this.getPayments();
 
     return fines.map((fine) => {
-      const relatedPayments = payments.filter((payment) => {
-        const sameFine = payment.fineId === fine.id;
-        const sameStudentAndConcept =
-          !payment.fineId &&
-          payment.studentId === fine.studentId &&
-          payment.concept.trim().toLocaleLowerCase() ===
-            fine.concept.trim().toLocaleLowerCase();
-
-        return (
-          (sameFine || sameStudentAndConcept) &&
-          (payment.status ?? "PAGADO") === "PAGADO"
-        );
-      });
+      const relatedPayments = payments.filter(
+        (payment) =>
+          payment.fineId === fine.id &&
+          (payment.status ?? "PAGADO") === "PAGADO",
+      );
 
       const paidAmount = relatedPayments.reduce(
         (total, payment) => total + payment.amount,
@@ -177,6 +102,7 @@ export const financeRepository = {
       return {
         ...fine,
         status: "PENDIENTE" as const,
+        paidDate: undefined,
       };
     });
   },
@@ -228,15 +154,79 @@ export const financeRepository = {
     storageService.set(USERS_KEY, remainingUsers);
     return true;
   },
+  markPaymentPaid(paymentId: string, registeredBy: string): Payment | null {
+    const payments = this.getPayments();
 
+    const currentPayment = payments.find(
+      (payment) => payment.id === paymentId,
+    );
+
+    if (
+      !currentPayment ||
+      (currentPayment.status ?? "PAGADO") !== "PENDIENTE"
+    ) {
+      return null;
+    }
+
+    const updatedPayment: Payment = {
+      ...currentPayment,
+      status: "PAGADO",
+      date: getLocalDate(),
+      time: getLocalTime(),
+      registeredBy,
+      observations: [
+        currentPayment.observations?.trim(),
+        `Marcado como pagado por ${registeredBy}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    };
+
+    storageService.set(
+      PAYMENTS_KEY,
+      payments.map((payment) =>
+        payment.id === paymentId ? updatedPayment : payment,
+      ),
+    );
+
+    return updatedPayment;
+  },
   addPayment(data: Omit<Payment, "id">) {
-    const payment: Payment = { ...data, id: id("payment") };
-    const payments = [...this.getPayments(), payment];
+    let fineId = data.fineId;
 
+    if (!fineId) {
+      const normalizedConcept = data.concept
+        .trim()
+        .toLocaleLowerCase();
+
+      const matchingFines = this.getFines().filter(
+        (fine) =>
+          fine.studentId === data.studentId &&
+          fine.concept.trim().toLocaleLowerCase() === normalizedConcept &&
+          fine.status === "PENDIENTE",
+      );
+
+      if (matchingFines.length === 1) {
+        fineId = matchingFines[0].id;
+      }
+    }
+
+    const payment: Payment = {
+      ...data,
+      ...(fineId ? { fineId } : {}),
+      id: id("payment"),
+    };
+
+    const payments = [...this.getPayments(), payment];
     storageService.set(PAYMENTS_KEY, payments);
 
-    if (payment.fineId && (payment.status ?? "PAGADO") === "PAGADO") {
-      const fine = this.getFines().find((item) => item.id === payment.fineId);
+    if (
+      payment.fineId &&
+      (payment.status ?? "PAGADO") === "PAGADO"
+    ) {
+      const fine = this.getFines().find(
+        (item) => item.id === payment.fineId,
+      );
 
       if (fine) {
         const paidAmount = payments
@@ -247,13 +237,23 @@ export const financeRepository = {
           )
           .reduce((total, item) => total + item.amount, 0);
 
-        const updatedFines = this.getFines().map((item) =>
-          item.id === fine.id && paidAmount >= item.amount
-            ? { ...item, status: "PAGADA" as const, paidDate: payment.date }
-            : item,
-        );
+        if (paidAmount >= fine.amount) {
+          const storedFines =
+            storageService.get<Fine[]>(FINES_KEY) ?? seedFines;
 
-        storageService.set(FINES_KEY, updatedFines);
+          storageService.set(
+            FINES_KEY,
+            storedFines.map((item) =>
+              item.id === fine.id
+                ? {
+                    ...item,
+                    status: "PAGADA" as const,
+                    paidDate: payment.date,
+                  }
+                : item,
+            ),
+          );
+        }
       }
     }
 
@@ -279,20 +279,12 @@ export const financeRepository = {
     }
 
     const alreadyPaid = this.getPayments()
-      .filter((payment) => {
-        const sameFine = payment.fineId === fineId;
-        const sameStudentAndConcept =
-          !payment.fineId &&
-          payment.studentId === fine.studentId &&
-          payment.concept.trim().toLocaleLowerCase() ===
-            fine.concept.trim().toLocaleLowerCase();
-
-        return (
-          (sameFine || sameStudentAndConcept) &&
-          (payment.status ?? "PAGADO") === "PAGADO"
-        );
-      })
-      .reduce((total, payment) => total + payment.amount, 0);
+    .filter(
+      (payment) =>
+        payment.fineId === fineId &&
+        (payment.status ?? "PAGADO") === "PAGADO",
+    )
+    .reduce((total, payment) => total + payment.amount, 0);
 
     const remaining = Math.max(fine.amount - alreadyPaid, 0);
 
@@ -314,21 +306,58 @@ export const financeRepository = {
   },
 
   balance(studentId: string) {
-    const paid = this.getPayments()
-      .filter(
-        (item) =>
-          item.studentId === studentId &&
-          (item.status ?? "PAGADO") === "PAGADO",
-      )
-      .reduce((total, item) => total + item.amount, 0);
+    const payments = this.getPayments();
+    const studentFines = this.getFines().filter(
+      (fine) => fine.studentId === studentId,
+    );
 
-    const owed = this.getFines()
-      .filter((item) => item.studentId === studentId)
-      .reduce((total, item) => total + item.amount, 0);
+    // Calcula cada multa por separado.
+    // Solo descuenta pagos enlazados a esa multa o con el mismo concepto.
+    const finesBalance = studentFines.reduce((total, fine) => {
+      const fineConcept = fine.concept.trim().toLocaleLowerCase();
 
-    return Math.max(owed - paid, 0);
+      const paidForThisFine = payments
+        .filter((payment) => {
+          const isPaid = (payment.status ?? "PAGADO") === "PAGADO";
+          const isLinkedById = payment.fineId === fine.id;
+          const isLinkedByConcept =
+            !payment.fineId &&
+            payment.studentId === fine.studentId &&
+            payment.concept.trim().toLocaleLowerCase() === fineConcept;
+
+          return (
+            payment.studentId === studentId &&
+            isPaid &&
+            (isLinkedById || isLinkedByConcept)
+          );
+        })
+        .reduce((sum, payment) => sum + payment.amount, 0);
+
+      return total + Math.max(fine.amount - paidForThisFine, 0);
+    }, 0);
+
+    // También incluye cobros pendientes que no estén representados por una multa.
+    const otherPendingPayments = payments
+      .filter((payment) => {
+        if (
+          payment.studentId !== studentId ||
+          payment.status !== "PENDIENTE" ||
+          payment.fineId
+        ) {
+          return false;
+        }
+
+        const paymentConcept = payment.concept.trim().toLocaleLowerCase();
+
+        return !studentFines.some(
+          (fine) =>
+            fine.concept.trim().toLocaleLowerCase() === paymentConcept,
+        );
+      })
+      .reduce((sum, payment) => sum + payment.amount, 0);
+
+    return finesBalance + otherPendingPayments;
   },
-
   roleLabel(role: UserRole) {
     return {
       ADMIN: "Administrador",

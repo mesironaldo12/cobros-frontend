@@ -4,6 +4,7 @@ import type { Payment } from "../../types/finance";
 type Props = {
   payments: Payment[];
   title: string;
+  onMarkPaid?: (paymentId: string) => void;
 };
 
 const money = new Intl.NumberFormat("es-BO", {
@@ -12,7 +13,11 @@ const money = new Intl.NumberFormat("es-BO", {
   minimumFractionDigits: 0,
 });
 
-export default function PaymentTable({ payments, title }: Props) {
+export default function PaymentTable({
+  payments,
+  title,
+  onMarkPaid,
+}: Props) {
   const users = financeRepository.getUsers();
 
   return (
@@ -37,6 +42,7 @@ export default function PaymentTable({ payments, title }: Props) {
               <th>Monto</th>
               <th>Estado</th>
               <th>Detalle</th>
+              {onMarkPaid && <th>Acciones</th>}
             </tr>
           </thead>
 
@@ -63,11 +69,13 @@ export default function PaymentTable({ payments, title }: Props) {
                     <td>{student?.course || "—"}</td>
                     <td>{payment.concept}</td>
                     <td className="amount">{money.format(payment.amount)}</td>
+
                     <td>
                       <b className={`tag ${isPaid ? "paid" : "due"}`}>
                         {isPaid ? "Pagado" : "Pendiente"}
                       </b>
                     </td>
+
                     <td>
                       {payment.observations && (
                         <details>
@@ -77,12 +85,39 @@ export default function PaymentTable({ payments, title }: Props) {
                       )}
                       <small>Registrado por: {payment.registeredBy}</small>
                     </td>
+
+                    {onMarkPaid && (
+                      <td>
+                        {!isPaid ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const confirmed = window.confirm(
+                                `¿Confirmas que recibiste ${money.format(
+                                  payment.amount,
+                                )} de ${
+                                  student?.name ?? "este estudiante"
+                                }?`,
+                              );
+
+                              if (confirmed) {
+                                onMarkPaid(payment.id);
+                              }
+                            }}
+                          >
+                            Marcar como pagado
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })
             ) : (
               <tr>
-                <td colSpan={9} className="empty">
+                <td colSpan={onMarkPaid ? 10 : 9} className="empty">
                   Aún no hay cobros registrados.
                 </td>
               </tr>

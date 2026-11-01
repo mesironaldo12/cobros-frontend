@@ -244,6 +244,18 @@ function TreasurerView({
         students={students}
         registrar={registrar}
         refresh={refresh}
+        onMarkPaid={(paymentId) => {
+          const updated = financeRepository.markPaymentPaid(
+            paymentId,
+            registrar,
+          );
+
+          refresh(
+            updated
+              ? "El cobro se marcó como pagado."
+              : "No se pudo actualizar el cobro.",
+          );
+        }}
       />
     );
   }
@@ -365,6 +377,18 @@ function AdminView({
         students={students}
         registrar={registrar}
         refresh={refresh}
+        onMarkPaid={(paymentId) => {
+          const updated = financeRepository.markPaymentPaid(
+            paymentId,
+            registrar,
+          );
+
+          refresh(
+            updated
+              ? "El cobro se marcó como pagado."
+              : "No se pudo actualizar el cobro.",
+          );
+        }}
       />
     );
   }

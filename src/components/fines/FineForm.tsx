@@ -1,4 +1,4 @@
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { financeRepository } from "../../repositories/financeRepository";
 import type { UserRecord } from "../../types/auth";
 
@@ -28,7 +28,12 @@ export default function FineForm({
   registrar,
   refresh,
 }: Props) {
+  const [selectedStudentId, setSelectedStudentId] = useState("");
   const fines = financeRepository.getFines();
+
+  const visibleFines = selectedStudentId
+    ? fines.filter((fine) => fine.studentId === selectedStudentId)
+    : fines;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -36,6 +41,7 @@ export default function FineForm({
     const form = event.currentTarget;
     const data = new FormData(form);
     const amount = Number(data.get("amount"));
+    const studentId = String(data.get("student"));
 
     if (!Number.isFinite(amount) || amount <= 0) {
       refresh("Escribe un monto mayor que cero.");
@@ -43,7 +49,7 @@ export default function FineForm({
     }
 
     financeRepository.addFine({
-      studentId: String(data.get("student")),
+      studentId,
       concept: String(data.get("concept")).trim(),
       amount,
       date: String(data.get("date")),
@@ -51,6 +57,7 @@ export default function FineForm({
     });
 
     form.reset();
+    setSelectedStudentId(studentId);
     refresh("Multa registrada correctamente.");
   };
 
@@ -76,7 +83,12 @@ export default function FineForm({
         <form onSubmit={submit}>
           <label>
             Estudiante
-            <select name="student" required defaultValue="">
+            <select
+              name="student"
+              required
+              value={selectedStudentId}
+              onChange={(event) => setSelectedStudentId(event.target.value)}
+            >
               <option value="" disabled>
                 Selecciona un estudiante
               </option>
@@ -130,8 +142,15 @@ export default function FineForm({
 
       <section className="panel">
         <div className="panel-head">
-          <h2>Multas registradas</h2>
-          <span>{fines.length} registros</span>
+          <h2>
+            {selectedStudentId
+              ? "Multas del estudiante seleccionado"
+              : "Multas registradas"}
+          </h2>
+          <span>
+            {visibleFines.length} registro
+            {visibleFines.length !== 1 ? "s" : ""}
+          </span>
         </div>
 
         <div className="table-wrap">
@@ -148,8 +167,8 @@ export default function FineForm({
             </thead>
 
             <tbody>
-              {fines.length > 0 ? (
-                fines.map((fine) => {
+              {visibleFines.length > 0 ? (
+                visibleFines.map((fine) => {
                   const student = students.find(
                     (item) => item.id === fine.studentId,
                   );
@@ -186,7 +205,9 @@ export default function FineForm({
               ) : (
                 <tr>
                   <td colSpan={6} className="empty">
-                    Aún no hay multas registradas.
+                    {selectedStudentId
+                      ? "Este estudiante no tiene multas registradas."
+                      : "Aún no hay multas registradas."}
                   </td>
                 </tr>
               )}
