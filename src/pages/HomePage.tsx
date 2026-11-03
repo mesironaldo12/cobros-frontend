@@ -710,18 +710,28 @@ function ManageList({
 </form>
 
 {showStatus && (
-  <div className="activity-search">
-    <label htmlFor="activity-search-input">Buscar actividad</label>
-    <input
-      id="activity-search-input"
-      className="activity-search__input"
-      type="search"
-      value={activitySearch}
-      onChange={(event) => setActivitySearch(event.target.value)}
-      placeholder="Escribe el nombre de la actividad"
-    />
+  <div className="search-bar">
+    <label className="search-bar__label" htmlFor="activity-search-input">
+      Buscar actividad
+    </label>
+
+    <div className="search-bar__field">
+      <svg className="search-bar__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <path d="m16 16 4 4" />
+      </svg>
+
+      <input
+        id="activity-search-input"
+        className="search-bar__input"
+        type="search"
+        value={activitySearch}
+        onChange={(event) => setActivitySearch(event.target.value)}
+        placeholder="Escribe el nombre de la actividad"
+      />
+    </div>
   </div>
-)} 
+)}
 
       <div className="table-wrap">
         <table>

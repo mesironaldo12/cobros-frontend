@@ -1950,35 +1950,62 @@ td strong {
 .activity-search {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  width: min(100% - 44px, 420px);
+  gap: 8px;
+  width: min(100% - 44px, 460px);
   margin: 20px 22px;
 }
 
-.activity-search label {
+.activity-search > label {
   color: var(--text);
   font-size: 12px;
   font-weight: 700;
 }
 
+.activity-search__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.activity-search__icon {
+  position: absolute;
+  left: 17px;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .activity-search__input {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
+  min-height: 48px;
+  padding: 10px 18px 10px 48px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #f1f5f9;
   color: var(--text);
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .activity-search__input::placeholder {
   color: var(--text-muted);
 }
 
+.activity-search__input:hover {
+  background: #eaf0f7;
+}
+
 .activity-search__input:focus {
   border-color: var(--primary);
+  background: var(--surface);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
@@ -1987,4 +2014,150 @@ td strong {
     width: calc(100% - 32px);
     margin: 16px;
   }
+}
+/* Estilo compartido para los buscadores */
+.search-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(calc(100% - 44px), 460px);
+  margin: 20px 22px;
+}
+
+.search-bar--form {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.search-bar--embedded {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  grid-column: 1 / -1;
+}
+
+.search-bar__label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.search-bar__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-bar__icon {
+  position: absolute;
+  left: 17px;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.search-bar__input {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 18px 10px 48px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: var(--text);
+  outline: none;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.search-bar__input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-bar__input:hover {
+  background: #eaf0f7;
+}
+
+.search-bar__input:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+@media (max-width: 620px) {
+  .search-bar:not(.search-bar--form):not(.search-bar--embedded) {
+    width: calc(100% - 32px);
+    margin: 16px;
+  }
+}
+/* Ajuste del buscador dentro de los formularios */
+.form-panel form .search-bar--form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+}
+
+.form-panel form .search-bar__label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.form-panel form .search-bar__field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.form-panel form .search-bar__icon {
+  position: absolute;
+  z-index: 1;
+  left: 17px;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.form-panel form input.search-bar__input,
+.form-panel form input.search-bar__input:focus {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 18px 10px 48px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: var(--text);
+  outline: none;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.form-panel form input.search-bar__input:hover {
+  background: #eaf0f7;
+}
+
+.form-panel form input.search-bar__input:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }

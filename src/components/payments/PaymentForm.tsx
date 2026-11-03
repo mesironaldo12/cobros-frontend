@@ -71,6 +71,15 @@ function normalizeSearch(value: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function SearchIcon() {
+  return (
+    <svg className="search-bar__icon" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m16 16 4 4" />
+    </svg>
+  );
+}
+
 export default function PaymentForm({
   students,
   registrar,
@@ -165,15 +174,26 @@ export default function PaymentForm({
         </div>
 
         <form onSubmit={submit}>
-          <label>
-            Buscar estudiante por nombre o carnet
-            <input
-              type="search"
-              value={studentSearch}
-              onChange={(event) => setStudentSearch(event.target.value)}
-              placeholder="Escribe un nombre o carnet"
-            />
-          </label>
+          <div className="search-bar search-bar--form">
+            <label
+              className="search-bar__label"
+              htmlFor="payment-student-search"
+            >
+              Buscar estudiante por nombre o carnet
+            </label>
+
+            <div className="search-bar__field">
+              <SearchIcon />
+              <input
+                id="payment-student-search"
+                className="search-bar__input"
+                type="search"
+                value={studentSearch}
+                onChange={(event) => setStudentSearch(event.target.value)}
+                placeholder="Escribe un nombre o carnet"
+              />
+            </div>
+          </div>
 
           <label>
             Estudiante

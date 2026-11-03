@@ -24,6 +24,15 @@ function normalizeSearch(value: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function SearchIcon() {
+  return (
+    <svg className="search-bar__icon" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m16 16 4 4" />
+    </svg>
+  );
+}
+
 const money = new Intl.NumberFormat("es-BO", {
   style: "currency",
   currency: "BOB",
@@ -67,15 +76,23 @@ export default function FineForm({
     const data = new FormData(form);
     const amount = Number(data.get("amount"));
     const studentId = String(data.get("student"));
+    const concept = String(data.get("concept")).trim();
+    const reason = String(data.get("reason")).trim();
 
     if (!Number.isFinite(amount) || amount <= 0) {
       refresh("Escribe un monto mayor que cero.");
       return;
     }
 
+    if (!reason) {
+      refresh("Escribe el motivo de la multa.");
+      return;
+    }
+
     financeRepository.addFine({
       studentId,
-      concept: String(data.get("concept")).trim(),
+      concept,
+      reason,
       amount,
       date: String(data.get("date")),
       registeredBy: registrar,
@@ -103,19 +120,30 @@ export default function FineForm({
         <div>
           <p className="eyebrow">Tesorería</p>
           <h2>Registrar multa</h2>
-          <p>Registra una nueva multa o cuota pendiente.</p>
+          <p>Registra una multa o cuota pendiente e indica el motivo.</p>
         </div>
 
         <form onSubmit={submit}>
-          <label>
-            Buscar estudiante por nombre o carnet
-            <input
-              type="search"
-              value={studentSearch}
-              onChange={(event) => setStudentSearch(event.target.value)}
-              placeholder="Escribe un nombre o carnet"
-            />
-          </label>
+          <div className="search-bar search-bar--form">
+            <label
+              className="search-bar__label"
+              htmlFor="fine-student-search"
+            >
+              Buscar estudiante por nombre o carnet
+            </label>
+
+            <div className="search-bar__field">
+              <SearchIcon />
+              <input
+                id="fine-student-search"
+                className="search-bar__input"
+                type="search"
+                value={studentSearch}
+                onChange={(event) => setStudentSearch(event.target.value)}
+                placeholder="Escribe un nombre o carnet"
+              />
+            </div>
+          </div>
 
           <label>
             Estudiante
@@ -143,6 +171,16 @@ export default function FineForm({
               name="concept"
               required
               placeholder="Ej. Multa por retraso"
+            />
+          </label>
+
+          <label>
+            Motivo de la multa
+            <textarea
+              name="reason"
+              rows={3}
+              required
+              placeholder="Explica por qué se registra esta multa"
             />
           </label>
 
@@ -183,6 +221,7 @@ export default function FineForm({
               ? `Multas de ${selectedStudent?.name ?? "estudiante"}`
               : "Multas registradas"}
           </h2>
+
           <span>
             {visibleFines.length} registro
             {visibleFines.length !== 1 ? "s" : ""}
@@ -195,6 +234,7 @@ export default function FineForm({
               <tr>
                 <th>Estudiante</th>
                 <th>Concepto</th>
+                <th>Motivo</th>
                 <th>Fecha</th>
                 <th>Monto</th>
                 <th>Estado</th>
@@ -214,6 +254,7 @@ export default function FineForm({
                     <tr key={fine.id}>
                       <td>{student?.name ?? "Estudiante no encontrado"}</td>
                       <td>{fine.concept}</td>
+                      <td>{fine.reason || "Sin motivo especificado"}</td>
                       <td>
                         {new Date(`${fine.date}T12:00:00`).toLocaleDateString(
                           "es-BO",
@@ -240,7 +281,7 @@ export default function FineForm({
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="empty">
+                  <td colSpan={7} className="empty">
                     {selectedStudentId
                       ? "Este estudiante no tiene multas registradas."
                       : "Aún no hay multas registradas."}

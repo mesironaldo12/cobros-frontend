@@ -20,4 +20,5 @@ export interface Fine {
   registeredBy: string;
   status?: "PENDIENTE" | "PAGADA";
   paidDate?: string;
+  reason?: string;
 }

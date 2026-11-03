@@ -27,6 +27,7 @@ export default function FineHistoryTable({ fines, title }: Props) {
             <tr>
               <th>Fecha</th>
               <th>Concepto</th>
+              <th>Motivo</th>
               <th>Monto</th>
               <th>Estado</th>
               <th>Fecha de pago</th>
@@ -46,6 +47,7 @@ export default function FineHistoryTable({ fines, title }: Props) {
                       )}
                     </td>
                     <td>{fine.concept}</td>
+                    <td>{fine.reason || "Sin motivo registrado"}</td>
                     <td className="amount">{money.format(fine.amount)}</td>
                     <td>
                       <b className={`tag ${isPaid ? "paid" : "due"}`}>
@@ -64,7 +66,7 @@ export default function FineHistoryTable({ fines, title }: Props) {
               })
             ) : (
               <tr>
-                <td colSpan={5} className="empty">
+                <td colSpan={6} className="empty">
                   No tienes multas registradas.
                 </td>
               </tr>
