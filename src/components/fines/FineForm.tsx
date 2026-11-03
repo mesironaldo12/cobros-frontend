@@ -17,6 +17,13 @@ function getLocalDate(): string {
   return `${year}-${month}-${day}`;
 }
 
+function normalizeSearch(value: string): string {
+  return value
+    .toLocaleLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 const money = new Intl.NumberFormat("es-BO", {
   style: "currency",
   currency: "BOB",
@@ -29,7 +36,25 @@ export default function FineForm({
   refresh,
 }: Props) {
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
+
   const fines = financeRepository.getFines();
+
+  const filteredStudents = students.filter((student) =>
+    normalizeSearch(`${student.name} ${student.carnet}`).includes(
+      normalizeSearch(studentSearch.trim()),
+    ),
+  );
+
+  const selectedStudent = students.find(
+    (student) => student.id === selectedStudentId,
+  );
+
+  const visibleStudents =
+    selectedStudent &&
+    !filteredStudents.some((student) => student.id === selectedStudentId)
+      ? [selectedStudent, ...filteredStudents]
+      : filteredStudents;
 
   const visibleFines = selectedStudentId
     ? fines.filter((fine) => fine.studentId === selectedStudentId)
@@ -58,6 +83,7 @@ export default function FineForm({
 
     form.reset();
     setSelectedStudentId(studentId);
+    setStudentSearch("");
     refresh("Multa registrada correctamente.");
   };
 
@@ -82,6 +108,16 @@ export default function FineForm({
 
         <form onSubmit={submit}>
           <label>
+            Buscar estudiante por nombre o carnet
+            <input
+              type="search"
+              value={studentSearch}
+              onChange={(event) => setStudentSearch(event.target.value)}
+              placeholder="Escribe un nombre o carnet"
+            />
+          </label>
+
+          <label>
             Estudiante
             <select
               name="student"
@@ -93,7 +129,7 @@ export default function FineForm({
                 Selecciona un estudiante
               </option>
 
-              {students.map((student) => (
+              {visibleStudents.map((student) => (
                 <option key={student.id} value={student.id}>
                   {student.name} · {student.carnet}
                 </option>
@@ -144,7 +180,7 @@ export default function FineForm({
         <div className="panel-head">
           <h2>
             {selectedStudentId
-              ? "Multas del estudiante seleccionado"
+              ? `Multas de ${selectedStudent?.name ?? "estudiante"}`
               : "Multas registradas"}
           </h2>
           <span>

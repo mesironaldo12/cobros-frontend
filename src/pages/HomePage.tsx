@@ -405,7 +405,10 @@ function AdminView({
         placeholder="Nombre de la actividad"
         refresh={refresh}
         showStatus
+        
       />
+      
+
     );
   }
 
@@ -547,6 +550,23 @@ function ManageList({
   const [value, setValue] = useState("");
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [activitySearch, setActivitySearch] = useState("");
+
+  const normalizedActivitySearch = activitySearch
+    .trim()
+    .toLocaleLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const filteredItems = showStatus
+    ? items.filter((item) =>
+        item
+          .toLocaleLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .includes(normalizedActivitySearch),
+      )
+    : items;
 
   const saveItems = (nextItems: string[]) => {
     setItems(nextItems);
@@ -644,9 +664,7 @@ function ManageList({
   };
 
   const remove = (item: string) => {
-    const confirmed = window.confirm(
-      `¿Quieres eliminar "${item}"?`,
-    );
+    const confirmed = window.confirm(`¿Quieres eliminar "${item}"?`);
 
     if (!confirmed) return;
 
@@ -668,24 +686,42 @@ function ManageList({
 
   return (
     <section className="panel">
-      <div className="panel-head">
-        <h2>{title}</h2>
-        <span>{items.length} registrados</span>
-      </div>
+     <div className="panel-head">
+  <h2>{title}</h2>
+  <span>
+    {showStatus
+      ? `${filteredItems.length} de ${items.length} actividades`
+      : `${items.length} registrados`}
+  </span>
+</div>
 
-      <form className="form-grid" onSubmit={add}>
-        <label>
-          {placeholder}
-          <input
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder={placeholder}
-            required
-          />
-        </label>
+<form className="form-grid" onSubmit={add}>
+  <label>
+    {placeholder}
+    <input
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+      placeholder={placeholder}
+      required
+    />
+  </label>
 
-        <button type="submit">Añadir</button>
-      </form>
+  <button type="submit">Añadir</button>
+</form>
+
+{showStatus && (
+  <div className="activity-search">
+    <label htmlFor="activity-search-input">Buscar actividad</label>
+    <input
+      id="activity-search-input"
+      className="activity-search__input"
+      type="search"
+      value={activitySearch}
+      onChange={(event) => setActivitySearch(event.target.value)}
+      placeholder="Escribe el nombre de la actividad"
+    />
+  </div>
+)} 
 
       <div className="table-wrap">
         <table>
@@ -698,7 +734,7 @@ function ManageList({
           </thead>
 
           <tbody>
-            {items.map((item) => {
+            {filteredItems.map((item) => {
               const isActive = statuses[item] !== false;
               const isEditing = editingItem === item;
 
@@ -766,10 +802,12 @@ function ManageList({
               );
             })}
 
-            {items.length === 0 && (
+            {filteredItems.length === 0 && (
               <tr>
                 <td colSpan={showStatus ? 3 : 2}>
-                  Todavía no hay elementos registrados.
+                  {items.length === 0
+                    ? "Todavía no hay elementos registrados."
+                    : "No se encontraron actividades con esa búsqueda."}
                 </td>
               </tr>
             )}
