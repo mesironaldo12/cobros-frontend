@@ -19,9 +19,22 @@ const money = new Intl.NumberFormat("es-BO", {
   minimumFractionDigits: 0,
 });
 
-const today = new Date().toISOString().slice(0, 10);
+function getLocalDateKey(): string {
+  const date = new Date();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+const today = getLocalDateKey();
+
+function getCurrentMonthKey(): string {
+  return today.slice(0, 7);
+}
 
 type NavItem = [string, string];
+
 
 function HomePage() {
   const navigate = useNavigate();
@@ -166,6 +179,11 @@ function StudentView({
   const paidMine = mine.filter(
     (payment) => (payment.status ?? "PAGADO") === "PAGADO",
   );
+  const currentMonth = getCurrentMonthKey();
+
+const paidThisMonth = paidMine.filter((payment) =>
+  payment.date.startsWith(currentMonth),
+);
 
   return (
     <>
@@ -177,7 +195,7 @@ function StudentView({
 
           <span>
             {balance > 0
-              ? "Tienes una cuota pendiente de pago"
+              ? "Tienes cobros pendientes de pago"
               : "No tienes pagos pendientes"}
           </span>
         </div>
@@ -187,10 +205,10 @@ function StudentView({
 
       <section className="cards three">
         <StatCard
-          label="Pagado este periodo"
-          value={money.format(
-            paidMine.reduce((total, payment) => total + payment.amount, 0),
-          )}
+          label="Pagado este mes"
+            value={money.format(
+    paidThisMonth.reduce((total, payment) => total + payment.amount, 0),
+)}
           icon="↓"
         />
 

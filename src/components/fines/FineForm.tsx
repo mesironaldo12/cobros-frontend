@@ -84,10 +84,7 @@ export default function FineForm({
       return;
     }
 
-    if (!reason) {
-      refresh("Escribe el motivo de la multa.");
-      return;
-    }
+    
 
     financeRepository.addFine({
       studentId,
