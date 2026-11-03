@@ -270,6 +270,29 @@ export const financeRepository = {
     storageService.set(FINES_KEY, [...this.getFines(), fine]);
     return fine;
   },
+  deleteFine(fineId: string): boolean {
+  const fines = storageService.get<Fine[]>(FINES_KEY) ?? seedFines;
+  const fine = fines.find((item) => item.id === fineId);
+
+  if (!fine || fine.status === "PAGADA") {
+    return false;
+  }
+
+  const hasLinkedPayments = this.getPayments().some(
+    (payment) => payment.fineId === fineId,
+  );
+
+  if (hasLinkedPayments) {
+    return false;
+  }
+
+  storageService.set(
+    FINES_KEY,
+    fines.filter((item) => item.id !== fineId),
+  );
+
+  return true;
+},
 
   settleFine(fineId: string, registeredBy: string) {
     const fine = this.getFines().find((item) => item.id === fineId);
@@ -306,58 +329,37 @@ export const financeRepository = {
   },
 
   balance(studentId: string) {
-    const payments = this.getPayments();
-    const studentFines = this.getFines().filter(
-      (fine) => fine.studentId === studentId,
-    );
+  const payments = this.getPayments();
+  const studentFines = this.getFines().filter(
+    (fine) => fine.studentId === studentId,
+  );
 
-    // Calcula cada multa por separado.
-    // Solo descuenta pagos enlazados a esa multa o con el mismo concepto.
-    const finesBalance = studentFines.reduce((total, fine) => {
-      const fineConcept = fine.concept.trim().toLocaleLowerCase();
-
-      const paidForThisFine = payments
-        .filter((payment) => {
-          const isPaid = (payment.status ?? "PAGADO") === "PAGADO";
-          const isLinkedById = payment.fineId === fine.id;
-          const isLinkedByConcept =
-            !payment.fineId &&
-            payment.studentId === fine.studentId &&
-            payment.concept.trim().toLocaleLowerCase() === fineConcept;
-
-          return (
-            payment.studentId === studentId &&
-            isPaid &&
-            (isLinkedById || isLinkedByConcept)
-          );
-        })
-        .reduce((sum, payment) => sum + payment.amount, 0);
-
-      return total + Math.max(fine.amount - paidForThisFine, 0);
-    }, 0);
-
-    // También incluye cobros pendientes que no estén representados por una multa.
-    const otherPendingPayments = payments
-      .filter((payment) => {
-        if (
-          payment.studentId !== studentId ||
-          payment.status !== "PENDIENTE" ||
-          payment.fineId
-        ) {
-          return false;
-        }
-
-        const paymentConcept = payment.concept.trim().toLocaleLowerCase();
-
-        return !studentFines.some(
-          (fine) =>
-            fine.concept.trim().toLocaleLowerCase() === paymentConcept,
-        );
-      })
+  // Un pago solo descuenta una multa cuando tiene su ID específico.
+  const finesBalance = studentFines.reduce((total, fine) => {
+    const paidForThisFine = payments
+      .filter(
+        (payment) =>
+          payment.studentId === studentId &&
+          payment.fineId === fine.id &&
+          (payment.status ?? "PAGADO") === "PAGADO",
+      )
       .reduce((sum, payment) => sum + payment.amount, 0);
 
-    return finesBalance + otherPendingPayments;
-  },
+    return total + Math.max(fine.amount - paidForThisFine, 0);
+  }, 0);
+
+  // Suma cobros pendientes independientes que no están enlazados a una multa.
+  const otherPendingPayments = payments
+    .filter(
+      (payment) =>
+        payment.studentId === studentId &&
+        payment.status === "PENDIENTE" &&
+        !payment.fineId,
+    )
+    .reduce((sum, payment) => sum + payment.amount, 0);
+
+  return finesBalance + otherPendingPayments;
+},
   roleLabel(role: UserRole) {
     return {
       ADMIN: "Administrador",

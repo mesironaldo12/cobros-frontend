@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { financeRepository } from "../../repositories/financeRepository";
 import type { UserRecord } from "../../types/auth";
+import type { Fine } from "../../types/finance";
 import PaymentTable from "./PaymentTable";
 
 type Props = {
@@ -64,7 +65,7 @@ function getActivityData(): ActivityData {
   }
 }
 
-function normalizeSearch(value: string): string {
+function normalizeStudentSearch(value: string): string {
   return value
     .toLocaleLowerCase()
     .normalize("NFD")
@@ -80,6 +81,19 @@ function SearchIcon() {
   );
 }
 
+function getRemainingFineAmount(fine: Fine): number {
+  const paidAmount = financeRepository
+    .getPayments()
+    .filter(
+      (payment) =>
+        payment.fineId === fine.id &&
+        (payment.status ?? "PAGADO") === "PAGADO",
+    )
+    .reduce((total, payment) => total + payment.amount, 0);
+
+  return Math.max(fine.amount - paidAmount, 0);
+}
+
 export default function PaymentForm({
   students,
   registrar,
@@ -92,27 +106,37 @@ export default function PaymentForm({
   const [selectedActivity, setSelectedActivity] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [studentListOpen, setStudentListOpen] = useState(false);
+  const [selectedFineId, setSelectedFineId] = useState("");
+  const [amountValue, setAmountValue] = useState("");
+  const [paymentStatus, setPaymentStatus] =
+    useState<"PAGADO" | "PENDIENTE">("PAGADO");
 
   const hasConfiguredActivities = allActivities.length > 0;
 
-  const filteredStudents = students.filter((student) => {
-    const search = normalizeSearch(studentSearch);
-    const searchableText = normalizeSearch(
-      `${student.name} ${student.carnet}`,
-    );
-
-    return searchableText.includes(search);
-  });
+  const filteredStudents = students.filter((student) =>
+    normalizeStudentSearch(`${student.name} ${student.carnet}`).includes(
+      normalizeStudentSearch(studentSearch.trim()),
+    ),
+  );
 
   const selectedStudent = students.find(
     (student) => student.id === selectedStudentId,
   );
 
-  const visibleStudents =
-    selectedStudent &&
-    !filteredStudents.some((student) => student.id === selectedStudentId)
-      ? [selectedStudent, ...filteredStudents]
-      : filteredStudents;
+  const pendingFines = selectedStudentId
+    ? financeRepository
+        .getFines()
+        .filter(
+          (fine) =>
+            fine.studentId === selectedStudentId &&
+            fine.status === "PENDIENTE",
+        )
+    : [];
+
+  const selectedFine = pendingFines.find(
+    (fine) => fine.id === selectedFineId,
+  );
 
   const selectedPayments = selectedStudentId
     ? financeRepository
@@ -120,18 +144,38 @@ export default function PaymentForm({
         .filter((payment) => payment.studentId === selectedStudentId)
     : [];
 
+  const chooseStudent = (student: UserRecord) => {
+    setStudentSearch(`${student.name} · ${student.carnet}`);
+    setSelectedStudentId(student.id);
+    setSelectedFineId("");
+    setAmountValue("");
+    setStudentListOpen(false);
+  };
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const form = event.currentTarget;
     const data = new FormData(form);
+
+    if (!selectedStudentId) {
+      refresh("Elige un estudiante de la lista de sugerencias.");
+      return;
+    }
+
     const amount = Number(data.get("amount"));
 
-    const concept = hasConfiguredActivities
-      ? selectedActivity
-      : String(data.get("concept") ?? "").trim();
+    const concept = selectedFine
+      ? selectedFine.concept
+      : hasConfiguredActivities
+        ? selectedActivity
+        : String(data.get("concept") ?? "").trim();
 
-    if (hasConfiguredActivities && activeActivities.length === 0) {
+    if (
+      !selectedFine &&
+      hasConfiguredActivities &&
+      activeActivities.length === 0
+    ) {
       refresh("Primero activa una actividad para poder registrar el cobro.");
       return;
     }
@@ -146,21 +190,49 @@ export default function PaymentForm({
       return;
     }
 
+    if (
+      selectedFine &&
+      amount > getRemainingFineAmount(selectedFine) + 0.001
+    ) {
+      refresh("El monto supera el saldo pendiente de esta multa.");
+      return;
+    }
+
+    const extraObservations = String(
+      data.get("observations") ?? "",
+    ).trim();
+
+    const observations = selectedFine
+      ? [
+          `Pago de multa: ${
+            selectedFine.reason || selectedFine.concept
+          }`,
+          extraObservations,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : extraObservations;
+
     financeRepository.addPayment({
-      studentId: String(data.get("student")),
+      studentId: selectedStudentId,
       concept,
       amount,
       date: String(data.get("date")),
-      time: String(data.get("time")),
-      status: String(data.get("status")) as "PAGADO" | "PENDIENTE",
-      observations: String(data.get("observations")).trim(),
+      time: String(data.get("time") ?? ""),
+      status: selectedFine ? "PAGADO" : paymentStatus,
+      observations,
       registeredBy: registrar,
+      ...(selectedFine ? { fineId: selectedFine.id } : {}),
     });
 
     form.reset();
     setSelectedActivity("");
     setStudentSearch("");
     setSelectedStudentId("");
+    setStudentListOpen(false);
+    setSelectedFineId("");
+    setAmountValue("");
+    setPaymentStatus("PAGADO");
     refresh("Cobro registrado correctamente.");
   };
 
@@ -175,51 +247,107 @@ export default function PaymentForm({
 
         <form onSubmit={submit}>
           <div className="search-bar search-bar--form">
-            <label
-              className="search-bar__label"
-              htmlFor="payment-student-search"
-            >
-              Buscar estudiante por nombre o carnet
+            <label className="search-bar__label" htmlFor="payment-student-search">
+              Buscar y seleccionar estudiante por nombre o carnet
             </label>
 
-            <div className="search-bar__field">
+            <div className="search-bar__field student-search__field">
               <SearchIcon />
+
               <input
                 id="payment-student-search"
                 className="search-bar__input"
-                type="search"
+                type="text"
                 value={studentSearch}
-                onChange={(event) => setStudentSearch(event.target.value)}
+                onFocus={() => setStudentListOpen(true)}
+                onBlur={() =>
+                  window.setTimeout(() => setStudentListOpen(false), 120)
+                }
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setStudentSearch(value);
+
+                  const matchedStudent = students.find(
+                    (student) =>
+                      `${student.name} · ${student.carnet}`.toLocaleLowerCase() ===
+                      value.trim().toLocaleLowerCase(),
+                  );
+
+                  setSelectedStudentId(matchedStudent?.id ?? "");
+                  setSelectedFineId("");
+                  setAmountValue("");
+                  setStudentListOpen(true);
+                }}
                 placeholder="Escribe un nombre o carnet"
+                autoComplete="off"
+                required
               />
+
+              {studentListOpen && (
+                <div className="student-search__dropdown">
+                  {filteredStudents.length > 0 ? (
+                    filteredStudents.map((student) => (
+                      <button
+                        key={student.id}
+                        type="button"
+                        className="student-search__option"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => chooseStudent(student)}
+                      >
+                        <strong>{student.name}</strong>
+                        <span>
+                          Carnet: {student.carnet}
+                          {student.school ? ` · ${student.school}` : ""}
+                          {student.course ? ` · ${student.course}` : ""}
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="student-search__empty">
+                      No se encontraron estudiantes.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          <label>
-            Estudiante
-            <select
-              name="student"
-              value={selectedStudentId}
-              onChange={(event) => setSelectedStudentId(event.target.value)}
-              required
-            >
-              <option value="" disabled>
-                Selecciona un estudiante
-              </option>
+          {pendingFines.length > 0 && (
+            <label>
+              Multa pendiente que se paga
+              <select
+                value={selectedFineId}
+                onChange={(event) => {
+                  const fineId = event.target.value;
+                  const fine = pendingFines.find(
+                    (item) => item.id === fineId,
+                  );
 
-              {visibleStudents.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.name} · {student.carnet}
-                  {student.school ? ` · ${student.school}` : ""}
-                  {student.course ? ` · ${student.course}` : ""}
-                </option>
-              ))}
-            </select>
-          </label>
+                  setSelectedFineId(fineId);
+                  setAmountValue(
+                    fine
+                      ? getRemainingFineAmount(fine).toFixed(2)
+                      : "",
+                  );
+                }}
+              >
+                <option value="">Es un cobro normal</option>
+
+                {pendingFines.map((fine) => (
+                  <option key={fine.id} value={fine.id}>
+                    {fine.concept} · {fine.reason || "Sin motivo"} · Bs{" "}
+                    {getRemainingFineAmount(fine).toFixed(2)} · {fine.date}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <label>
             Actividad o concepto
-            {activeActivities.length > 0 ? (
+            {selectedFine ? (
+              <input value={selectedFine.concept} readOnly />
+            ) : activeActivities.length > 0 ? (
               <select
                 name="activity"
                 value={selectedActivity}
@@ -252,7 +380,7 @@ export default function PaymentForm({
 
           <div className="form-row">
             <label>
-              Monto (Bs.) *
+              Monto (Bs.)
               <input
                 name="amount"
                 type="number"
@@ -260,12 +388,24 @@ export default function PaymentForm({
                 step="0.01"
                 required
                 placeholder="0.00"
+                value={amountValue}
+                onChange={(event) => setAmountValue(event.target.value)}
               />
             </label>
 
             <label>
               Estado del cobro
-              <select name="status" defaultValue="PAGADO" required>
+              <select
+                name="status"
+                value={selectedFine ? "PAGADO" : paymentStatus}
+                disabled={Boolean(selectedFine)}
+                onChange={(event) =>
+                  setPaymentStatus(
+                    event.target.value as "PAGADO" | "PENDIENTE",
+                  )
+                }
+                required
+              >
                 <option value="PAGADO">Pagado</option>
                 <option value="PENDIENTE">Pendiente</option>
               </select>
@@ -301,7 +441,11 @@ export default function PaymentForm({
           <button
             className="primary"
             type="submit"
-            disabled={hasConfiguredActivities && activeActivities.length === 0}
+            disabled={
+              !selectedFine &&
+              hasConfiguredActivities &&
+              activeActivities.length === 0
+            }
           >
             Registrar cobro
           </button>

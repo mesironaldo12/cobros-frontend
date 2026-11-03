@@ -8,6 +8,38 @@ type Props = {
   refresh: (message: string) => void;
 };
 
+const ACTIVITIES_KEY = "cobros_activities";
+const ACTIVITY_STATUS_KEY = "cobros_activities_status";
+
+function getActiveActivities(): string[] {
+  try {
+    const savedActivities = JSON.parse(
+      localStorage.getItem(ACTIVITIES_KEY) ?? "[]",
+    ) as unknown;
+
+    const savedStatuses = JSON.parse(
+      localStorage.getItem(ACTIVITY_STATUS_KEY) ?? "{}",
+    ) as unknown;
+
+    const activities = Array.isArray(savedActivities)
+      ? savedActivities.filter(
+          (activity): activity is string => typeof activity === "string",
+        )
+      : [];
+
+    const statuses =
+      savedStatuses &&
+      typeof savedStatuses === "object" &&
+      !Array.isArray(savedStatuses)
+        ? (savedStatuses as Record<string, boolean>)
+        : {};
+
+    return activities.filter((activity) => statuses[activity] !== false);
+  } catch {
+    return [];
+  }
+}
+
 function getLocalDate(): string {
   const date = new Date();
   const year = date.getFullYear();
@@ -17,7 +49,7 @@ function getLocalDate(): string {
   return `${year}-${month}-${day}`;
 }
 
-function normalizeSearch(value: string): string {
+function normalizeStudentSearch(value: string): string {
   return value
     .toLocaleLowerCase()
     .normalize("NFD")
@@ -46,12 +78,14 @@ export default function FineForm({
 }: Props) {
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
+  const [studentListOpen, setStudentListOpen] = useState(false);
 
+  const activities = getActiveActivities();
   const fines = financeRepository.getFines();
 
   const filteredStudents = students.filter((student) =>
-    normalizeSearch(`${student.name} ${student.carnet}`).includes(
-      normalizeSearch(studentSearch.trim()),
+    normalizeStudentSearch(`${student.name} ${student.carnet}`).includes(
+      normalizeStudentSearch(studentSearch.trim()),
     ),
   );
 
@@ -59,56 +93,80 @@ export default function FineForm({
     (student) => student.id === selectedStudentId,
   );
 
-  const visibleStudents =
-    selectedStudent &&
-    !filteredStudents.some((student) => student.id === selectedStudentId)
-      ? [selectedStudent, ...filteredStudents]
-      : filteredStudents;
-
   const visibleFines = selectedStudentId
     ? fines.filter((fine) => fine.studentId === selectedStudentId)
     : fines;
+
+  const chooseStudent = (student: UserRecord) => {
+    setStudentSearch(`${student.name} · ${student.carnet}`);
+    setSelectedStudentId(student.id);
+    setStudentListOpen(false);
+  };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const form = event.currentTarget;
     const data = new FormData(form);
+
+    if (!selectedStudentId) {
+      refresh("Elige un estudiante de la lista de sugerencias.");
+      return;
+    }
+
     const amount = Number(data.get("amount"));
-    const studentId = String(data.get("student"));
-    const concept = String(data.get("concept")).trim();
-    const reason = String(data.get("reason")).trim();
+    const concept = String(data.get("concept") ?? "").trim();
+    const reason = String(data.get("reason") ?? "").trim();
 
     if (!Number.isFinite(amount) || amount <= 0) {
       refresh("Escribe un monto mayor que cero.");
       return;
     }
 
-    
+    if (!concept) {
+      refresh("Selecciona o escribe una categoría para la multa.");
+      return;
+    }
 
     financeRepository.addFine({
-      studentId,
+      studentId: selectedStudentId,
       concept,
-      reason,
+      reason: reason || undefined,
       amount,
       date: String(data.get("date")),
       registeredBy: registrar,
     });
 
     form.reset();
-    setSelectedStudentId(studentId);
-    setStudentSearch("");
+
+    const registeredStudent = students.find(
+      (student) => student.id === selectedStudentId,
+    );
+
+    setStudentSearch(
+      registeredStudent
+        ? `${registeredStudent.name} · ${registeredStudent.carnet}`
+        : "",
+    );
+    setStudentListOpen(false);
     refresh("Multa registrada correctamente.");
   };
 
-  const payFine = (fineId: string) => {
-    const payment = financeRepository.settleFine(fineId, registrar);
+  
+    const removeFine = (fineId: string) => {
+    const confirmed = window.confirm(
+      "¿Seguro que quieres eliminar esta multa pendiente?",
+    );
 
-    if (payment) {
-      refresh("Pago de multa registrado correctamente.");
-    } else {
-      refresh("La multa ya está pagada o no se encontró.");
-    }
+    if (!confirmed) return;
+
+    const deleted = financeRepository.deleteFine(fineId);
+
+    refresh(
+      deleted
+        ? "Multa eliminada correctamente."
+        : "No se puede eliminar una multa que ya tiene pagos asociados.",
+    );
   };
 
   return (
@@ -117,66 +175,102 @@ export default function FineForm({
         <div>
           <p className="eyebrow">Tesorería</p>
           <h2>Registrar multa</h2>
-          <p>Registra una multa o cuota pendiente e indica el motivo.</p>
+          <p>Registra una multa pendiente y el motivo es opcional.</p>
         </div>
 
         <form onSubmit={submit}>
           <div className="search-bar search-bar--form">
-            <label
-              className="search-bar__label"
-              htmlFor="fine-student-search"
-            >
-              Buscar estudiante por nombre o carnet
+            <label className="search-bar__label" htmlFor="fine-student-search">
+              Buscar y seleccionar estudiante por nombre o carnet
             </label>
 
-            <div className="search-bar__field">
+            <div className="search-bar__field student-search__field">
               <SearchIcon />
+
               <input
                 id="fine-student-search"
                 className="search-bar__input"
-                type="search"
+                type="text"
                 value={studentSearch}
-                onChange={(event) => setStudentSearch(event.target.value)}
+                onFocus={() => setStudentListOpen(true)}
+                onBlur={() =>
+                  window.setTimeout(() => setStudentListOpen(false), 120)
+                }
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setStudentSearch(value);
+
+                  const matchedStudent = students.find(
+                    (student) =>
+                      `${student.name} · ${student.carnet}`.toLocaleLowerCase() ===
+                      value.trim().toLocaleLowerCase(),
+                  );
+
+                  setSelectedStudentId(matchedStudent?.id ?? "");
+                  setStudentListOpen(true);
+                }}
                 placeholder="Escribe un nombre o carnet"
+                autoComplete="off"
+                required
               />
+
+              {studentListOpen && (
+                <div className="student-search__dropdown">
+                  {filteredStudents.length > 0 ? (
+                    filteredStudents.map((student) => (
+                      <button
+                        key={student.id}
+                        type="button"
+                        className="student-search__option"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => chooseStudent(student)}
+                      >
+                        <strong>{student.name}</strong>
+                        <span>
+                          Carnet: {student.carnet}
+                          {student.school ? ` · ${student.school}` : ""}
+                          {student.course ? ` · ${student.course}` : ""}
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="student-search__empty">
+                      No se encontraron estudiantes.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           <label>
-            Estudiante
-            <select
-              name="student"
-              required
-              value={selectedStudentId}
-              onChange={(event) => setSelectedStudentId(event.target.value)}
-            >
-              <option value="" disabled>
-                Selecciona un estudiante
-              </option>
-
-              {visibleStudents.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.name} · {student.carnet}
+            Categoría de la multa
+            {activities.length > 0 ? (
+              <select name="concept" required defaultValue="">
+                <option value="" disabled>
+                  Selecciona una categoría
                 </option>
-              ))}
-            </select>
+
+                {activities.map((activity) => (
+                  <option key={activity} value={activity}>
+                    {activity}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                name="concept"
+                required
+                placeholder="Ej. Atrasos"
+              />
+            )}
           </label>
 
           <label>
-            Concepto
-            <input
-              name="concept"
-              required
-              placeholder="Ej. Multa por retraso"
-            />
-          </label>
-
-          <label>
-            Motivo de la multa
+            Motivo de la multa (opcional)
             <textarea
               name="reason"
               rows={3}
-              required
               placeholder="Explica por qué se registra esta multa"
             />
           </label>
@@ -230,7 +324,7 @@ export default function FineForm({
             <thead>
               <tr>
                 <th>Estudiante</th>
-                <th>Concepto</th>
+                <th>Categoría</th>
                 <th>Motivo</th>
                 <th>Fecha</th>
                 <th>Monto</th>
@@ -251,7 +345,7 @@ export default function FineForm({
                     <tr key={fine.id}>
                       <td>{student?.name ?? "Estudiante no encontrado"}</td>
                       <td>{fine.concept}</td>
-                      <td>{fine.reason || "Sin motivo especificado"}</td>
+                      <td>{fine.reason || "Sin motivo registrado"}</td>
                       <td>
                         {new Date(`${fine.date}T12:00:00`).toLocaleDateString(
                           "es-BO",
@@ -264,15 +358,20 @@ export default function FineForm({
                         </b>
                       </td>
                       <td>
-                        {!isPaid && (
+                      {!isPaid && (
+                        <div className="table-actions">
+                          
+
                           <button
                             type="button"
-                            onClick={() => payFine(fine.id)}
+                            className="danger-button"
+                            onClick={() => removeFine(fine.id)}
                           >
-                            Registrar pago
+                            Eliminar
                           </button>
-                        )}
-                      </td>
+                        </div>
+                      )}
+                    </td>
                     </tr>
                   );
                 })
